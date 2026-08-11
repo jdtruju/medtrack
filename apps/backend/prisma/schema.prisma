@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RolUsuario {
+  PACIENTE
+  ADMIN
+}
+
+enum DiaSemana {
+  LUN
+  MAR
+  MIE
+  JUE
+  VIE
+  SAB
+  DOM
+}
+
+enum EstadoCita {
+  PENDIENTE
+  CONFIRMADA
+  REPROGRAMADA
+  CANCELADA
+  COMPLETADA
+}
+
+enum TipoNotificacion {
+  CONFIRMACION
+  RECORDATORIO
+  CANCELACION
+  REPROGRAMACION
+}
+
+enum CanalNotificacion {
+  EMAIL
+  IN_APP
+}
+
+model Usuario {
+  id               String    @id @default(uuid())
+  email            String    @unique
+  passwordHash     String
+  nombre           String
+  apellido         String
+  telefono         String?
+  rol              RolUsuario @default(PACIENTE)
+  activo           Boolean   @default(true)
+  intentosFallidos Int       @default(0)
+  bloqueadoHasta   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  citas          Cita[]
+  notificaciones Notificacion[]
+
+  @@map("usuarios")
+}
+
+model Medico {
+  id        String   @id @default(uuid())
+  nombre    String
+  apellido  String
+  email     String   @unique
+  telefono  String?
+  licencia  String   @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  especialidades MedicoEspecialidad[]
+  horarios       Horario[]
+  citas          Cita[]
+
+  @@map("medicos")
+}
+
+model Especialidad {
+  id          String  @id @default(uuid())
+  nombre      String  @unique
+  descripcion String?
+
+  medicos MedicoEspecialidad[]
+  citas   Cita[]
+
+  @@map("especialidades")
+}
+
+model MedicoEspecialidad {
+  medicoId       String
+  especialidadId String
+
+  medico       Medico       @relation(fields: [medicoId], references: [id])
+  especialidad Especialidad @relation(fields: [especialidadId], references: [id])
+
+  @@id([medicoId, especialidadId])
+  @@map("medico_especialidades")
+}
+
+model Horario {
+  id         String    @id @default(uuid())
+  medicoId   String
+  diaSemana  DiaSemana
+  horaInicio String
+  horaFin    String
+  activo     Boolean   @default(true)
+
+  medico Medico @relation(fields: [medicoId], references: [id])
+
+  @@map("horarios")
+}
+
+model Cita {
+  id             String       @id @default(uuid())
+  pacienteId     String
+  medicoId       String
+  especialidadId String
+  fechaHora      DateTime
+  estado         EstadoCita   @default(PENDIENTE)
+  motivo         String?
+  notas          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  paciente       Usuario        @relation(fields: [pacienteId], references: [id])
+  medico         Medico         @relation(fields: [medicoId], references: [id])
+  especialidad   Especialidad   @relation(fields: [especialidadId], references: [id])
+  notificaciones Notificacion[]
+
+  @@map("citas")
+}
+
+model Notificacion {
+  id        String            @id @default(uuid())
+  usuarioId String
+  citaId    String?
+  tipo      TipoNotificacion
+  canal     CanalNotificacion @default(EMAIL)
+  mensaje   String
+  leida     Boolean           @default(false)
+  enviada   Boolean           @default(false)
+  createdAt DateTime          @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  cita    Cita?   @relation(fields: [citaId], references: [id])
+
+  @@map("notificaciones")
+}
