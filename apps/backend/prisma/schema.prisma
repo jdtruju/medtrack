@@ -58,8 +58,22 @@ model Usuario {
 
   citas          Cita[]
   notificaciones Notificacion[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("usuarios")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  usuarioId String
+  token     String    @unique
+  expiraEn  DateTime
+  usadoEn   DateTime?
+  createdAt DateTime  @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("password_reset_tokens")
 }
 
 model Medico {

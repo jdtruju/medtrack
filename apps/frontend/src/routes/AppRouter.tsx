@@ -6,6 +6,7 @@ import { SpecialtiesPage } from '../pages/admin/SpecialtiesPage';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
+import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 import { AppointmentsPage } from '../pages/patient/AppointmentsPage';
 import { PatientDashboardPage } from '../pages/patient/PatientDashboardPage';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -17,6 +18,7 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route
         path="/patient/dashboard"

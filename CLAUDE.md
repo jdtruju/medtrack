@@ -41,20 +41,30 @@ medtrack/
 ## Cómo correr el proyecto
 
 1. `npm install` en la raíz — instala los tres workspaces (`apps/backend`, `apps/frontend`, `packages/shared`).
-2. Copiar `.env.example` a `apps/backend/.env` y ajustar `DATABASE_URL` a una instancia de PostgreSQL local o de Supabase.
-3. `npm run prisma:generate --workspace=apps/backend` — genera el cliente Prisma.
-4. `npm run dev:backend` — levanta la API en `http://localhost:4000` (probar `GET /health`).
-5. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
-6. `npm test` — corre las pruebas de todos los workspaces.
+2. Copiar `.env.example` a `apps/backend/.env`. Para desarrollo inicial dejar `USE_IN_MEMORY_DB=true`.
+3. `npm run dev:backend` — levanta la API en `http://localhost:4000` (probar `GET /health`).
+4. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
+5. `npm test` — corre las pruebas de todos los workspaces.
+
+Cuando se implemente base de datos persistente, cambiar `USE_IN_MEMORY_DB=false`, configurar `DATABASE_URL`,
+correr `npm run prisma:generate --workspace=apps/backend` y luego `npx prisma db push --schema apps/backend/prisma/schema.prisma`.
+
+## Notas de Sprint 1
+
+- El envío de correos de recuperación está simulado con `MockMailService`. En desarrollo registra el enlace/token en logs del backend y en memoria para pruebas; debe reemplazarse por SMTP/proveedor real antes de producción.
+- Sprint 1 corre sin PostgreSQL usando repositorios en memoria (`USE_IN_MEMORY_DB=true`). Los datos se reinician al reiniciar el backend.
+- Usuario admin de desarrollo: `admin@medtrack.test` / `Admin12345`.
+- La recuperación de contraseña usa tokens de 30 minutos en la tabla `password_reset_tokens`.
+- El bloqueo de inicio de sesión se activa al tercer intento fallido y dura 15 minutos.
 
 ## Backlog (fuente: ProductBacklog_MedTrack.pdf, Julio 2026)
 
 ### Épica 1 – Gestión de Usuarios
 
-- [ ] HU-01 Registro de Pacientes — pendiente
-- [ ] HU-02 Inicio de Sesión — pendiente
-- [ ] HU-03 Recuperar Contraseña — pendiente
-- [ ] HU-04 Registrar Médico — pendiente
+- [x] HU-01 Registro de Pacientes — completada en Sprint 1
+- [x] HU-02 Inicio de Sesión — completada en Sprint 1
+- [x] HU-03 Recuperar Contraseña — completada en Sprint 1
+- [x] HU-04 Registrar Médico — completada en Sprint 1
 
 ### Épica 2 – Gestión de Médicos y Especialidades
 
