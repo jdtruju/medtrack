@@ -6,7 +6,7 @@ cómo correrlo, y el backlog oficial con su estado.
 
 ## Stack
 
-- **Frontend:** React + TypeScript + Vite + Tailwind CSS + React Router
+- **Frontend:** React + TypeScript + Vite + Tailwind CSS + React Router, Recharts (gráficos), jsPDF (exportar reportes a PDF)
 - **Backend:** Node.js + Express + TypeScript — intermediario real entre el frontend y Supabase (la `service_role key` de Supabase solo vive en el backend, nunca en el navegador)
 - **Base de datos y autenticación:** Supabase (PostgreSQL + Supabase Auth), sin ORM — esquema en `supabase/migrations/*.sql`, aplicado a mano en el SQL Editor del dashboard
 - **Validación:** Zod (backend)
@@ -48,7 +48,7 @@ medtrack/
 6. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
 7. `npm test` — corre las pruebas de todos los workspaces.
 
-## Notas de Épica 1, 2 y 3 (Express + Supabase)
+## Notas de Épica 1, 2, 3 y 5 (Express + Supabase)
 
 - El frontend habla con Express (`/api/...`); Express es el único que tiene la `service_role key` de Supabase. La única excepción es `AvailabilityPage`, que abre una suscripción Realtime de solo lectura directo a Supabase con la key pública (Realtime es una conexión navegador→Supabase por diseño de la plataforma).
 - El correo de recuperación de contraseña es real (Supabase Auth lo envía); Express solo orquesta la llamada.
@@ -58,6 +58,11 @@ medtrack/
 - HU-07/08/09 (citas): la protección contra doble reserva es un índice único parcial en Postgres (`citas_medico_fecha_activa` en `supabase/migrations/0006_citas.sql`), no una verificación en JavaScript — es lo único que garantiza que dos pacientes no puedan reservar el mismo médico a la misma hora aunque lo intenten al mismo tiempo.
 - `fechaHora` se maneja como el string `"YYYY-MM-DDTHH:mm"` en todo el sistema (sin zona horaria) — simplificación deliberada para este proyecto académico.
 - Las franjas de reserva son de 30 minutos.
+- Los reportes (Épica 5) no agregan tablas nuevas: son vistas calculadas al momento sobre
+  `citas`/`horarios`/`medicos`/`perfiles`. La "ocupación por médico" se calcula sobre la
+  semana actual (lunes a domingo).
+- La exportación a PDF (HU-13/HU-14) es 100% del lado del cliente (`jsPDF` +
+  `jspdf-autotable`), sin tocar el backend — no requiere la `service_role key`.
 
 ## Backlog (fuente: ProductBacklog_MedTrack.pdf, Julio 2026)
 
@@ -87,9 +92,9 @@ medtrack/
 
 ### Épica 5 – Reportes
 
-- [ ] HU-13 Reporte de Disponibilidad — pendiente
-- [ ] HU-14 Reporte de Citas — pendiente
-- [ ] HU-15 Dashboard Administrativo — pendiente
+- [x] HU-13 Reporte de Disponibilidad — completada en Sprint 4
+- [x] HU-14 Reporte de Citas — completada en Sprint 4
+- [x] HU-15 Dashboard Administrativo — completada en Sprint 4
 
 ### Épica 6 – Calidad del Software (QA)
 
