@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { AppShell, WorkPanel } from '../../components/AppShell';
 import { FormField } from '../../components/FormField';
 import { StatusMessage } from '../../components/StatusMessage';
-import { supabase } from '../../lib/supabaseClient';
+import { apiRequest, getSession } from '../../lib/api';
+import { adminNavItems } from '../../lib/nav';
 
 interface Specialty {
   id: string;
@@ -17,23 +18,16 @@ interface CreatedDoctor {
   especialidad: string;
 }
 
-const adminNav = [
-  { label: 'Panel', to: '/admin/dashboard' },
-  { label: 'Medicos', to: '/admin/doctors' },
-  { label: 'Especialidades', to: '/admin/specialties' },
-  { label: 'Reportes', to: '/admin/reports' },
-];
-
 export function DoctorsPage() {
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [createdDoctors, setCreatedDoctors] = useState<CreatedDoctor[]>([]);
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    supabase
-      .from('especialidades')
-      .select('id, nombre')
-      .then(({ data }: { data: Specialty[] | null }) => setSpecialties(data ?? []));
+    const { token } = getSession();
+    apiRequest<{ especialidades: Specialty[] }>('/api/especialidades', { token })
+      .then((response) => setSpecialties(response.especialidades))
+      .catch(() => setSpecialties([]));
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -41,43 +35,43 @@ export function DoctorsPage() {
     const formElement = event.currentTarget;
     setStatus(null);
     const form = new FormData(formElement);
+    const { token } = getSession();
     const especialidadId = String(form.get('especialidadId') ?? '');
     const especialidad = specialties.find((item) => item.id === especialidadId);
 
-    const { error } = await supabase.from('medicos').insert({
-      nombre: form.get('nombre'),
-      apellido: form.get('apellido'),
-      email: form.get('email'),
-      telefono: form.get('telefono'),
-      licencia: form.get('licencia'),
-      especialidad_id: especialidadId,
-    });
+    try {
+      const response = await apiRequest<{ message: string }>('/api/medicos', {
+        method: 'POST',
+        token,
+        body: {
+          nombre: form.get('nombre'),
+          apellido: form.get('apellido'),
+          email: form.get('email'),
+          telefono: form.get('telefono'),
+          licencia: form.get('licencia'),
+          especialidadId,
+        },
+      });
 
-    if (error) {
-      const message =
-        error.code === '23505'
-          ? 'Ya existe un médico con esta cédula profesional.'
-          : error.message;
-      setStatus({ tone: 'error', message });
-      return;
+      setCreatedDoctors((current) => [
+        {
+          nombre: String(form.get('nombre') ?? ''),
+          apellido: String(form.get('apellido') ?? ''),
+          email: String(form.get('email') ?? ''),
+          licencia: String(form.get('licencia') ?? ''),
+          especialidad: especialidad?.nombre ?? '',
+        },
+        ...current,
+      ]);
+      formElement.reset();
+      setStatus({ tone: 'success', message: response.message });
+    } catch (error) {
+      setStatus({ tone: 'error', message: (error as Error).message });
     }
-
-    setCreatedDoctors((current) => [
-      {
-        nombre: String(form.get('nombre') ?? ''),
-        apellido: String(form.get('apellido') ?? ''),
-        email: String(form.get('email') ?? ''),
-        licencia: String(form.get('licencia') ?? ''),
-        especialidad: especialidad?.nombre ?? '',
-      },
-      ...current,
-    ]);
-    formElement.reset();
-    setStatus({ tone: 'success', message: 'Médico registrado correctamente.' });
   }
 
   return (
-    <AppShell title="Medicos" subtitle="Registro administrativo de profesionales y especialidades." navItems={adminNav}>
+    <AppShell title="Medicos" subtitle="Registro administrativo de profesionales y especialidades." navItems={adminNavItems}>
       <div className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
         <WorkPanel title="Registrar medico">
           <form className="grid gap-4" onSubmit={handleSubmit}>

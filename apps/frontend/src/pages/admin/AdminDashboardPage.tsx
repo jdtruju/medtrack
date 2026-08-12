@@ -1,16 +1,10 @@
 import { Link } from 'react-router-dom';
 import { AppShell, StatGrid, WorkPanel } from '../../components/AppShell';
-
-const adminNav = [
-  { label: 'Panel', to: '/admin/dashboard' },
-  { label: 'Medicos', to: '/admin/doctors' },
-  { label: 'Especialidades', to: '/admin/specialties' },
-  { label: 'Reportes', to: '/admin/reports' },
-];
+import { adminNavItems } from '../../lib/nav';
 
 export function AdminDashboardPage() {
   return (
-    <AppShell title="Panel administrativo" subtitle="Resumen operativo para gestion de MedTrack." navItems={adminNav}>
+    <AppShell title="Panel administrativo" subtitle="Resumen operativo para gestion de MedTrack." navItems={adminNavItems}>
       <StatGrid
         stats={[
           { label: 'Pacientes registrados', value: 'Demo', detail: 'Memoria temporal activa' },

@@ -1,17 +1,11 @@
 import { AppShell, WorkPanel } from '../../components/AppShell';
-
-const adminNav = [
-  { label: 'Panel', to: '/admin/dashboard' },
-  { label: 'Medicos', to: '/admin/doctors' },
-  { label: 'Especialidades', to: '/admin/specialties' },
-  { label: 'Reportes', to: '/admin/reports' },
-];
+import { adminNavItems } from '../../lib/nav';
 
 const specialties = ['Cardiologia', 'Pediatria', 'Medicina general'];
 
 export function SpecialtiesPage() {
   return (
-    <AppShell title="Especialidades" subtitle="Catalogo inicial usado para asignar medicos." navItems={adminNav}>
+    <AppShell title="Especialidades" subtitle="Catalogo inicial usado para asignar medicos." navItems={adminNavItems}>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {specialties.map((specialty) => (
           <article key={specialty} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

@@ -1,20 +1,16 @@
 import { vi } from 'vitest';
 
 export function createSupabaseMock() {
+  const unsubscribe = vi.fn();
+  const channel = {
+    on: vi.fn().mockReturnThis(),
+    subscribe: vi.fn().mockReturnThis(),
+  };
+
   return {
-    auth: {
-      signUp: vi.fn(),
-      signInWithPassword: vi.fn(),
-      resetPasswordForEmail: vi.fn(),
-      updateUser: vi.fn(),
-      signOut: vi.fn().mockResolvedValue({ error: null }),
-      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      onAuthStateChange: vi.fn(() => ({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      })),
-    },
-    from: vi.fn(),
-    rpc: vi.fn(),
+    channel: vi.fn(() => channel),
+    removeChannel: vi.fn(),
+    __unsubscribe: unsubscribe,
   };
 }
 

@@ -1,14 +1,10 @@
 import { Link } from 'react-router-dom';
 import { AppShell, StatGrid, WorkPanel } from '../../components/AppShell';
-
-const patientNav = [
-  { label: 'Panel', to: '/patient/dashboard' },
-  { label: 'Mis citas', to: '/patient/appointments' },
-];
+import { patientNavItems } from '../../lib/nav';
 
 export function PatientDashboardPage() {
   return (
-    <AppShell title="Panel del paciente" subtitle="Resumen de citas y estado de la cuenta." navItems={patientNav}>
+    <AppShell title="Panel del paciente" subtitle="Resumen de citas y estado de la cuenta." navItems={patientNavItems}>
       <StatGrid
         stats={[
           { label: 'Citas pendientes', value: '0', detail: 'Sin solicitudes activas' },

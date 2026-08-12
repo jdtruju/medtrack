@@ -1,15 +1,9 @@
 import { AppShell, StatGrid, WorkPanel } from '../../components/AppShell';
-
-const adminNav = [
-  { label: 'Panel', to: '/admin/dashboard' },
-  { label: 'Medicos', to: '/admin/doctors' },
-  { label: 'Especialidades', to: '/admin/specialties' },
-  { label: 'Reportes', to: '/admin/reports' },
-];
+import { adminNavItems } from '../../lib/nav';
 
 export function ReportsPage() {
   return (
-    <AppShell title="Reportes" subtitle="Indicadores iniciales para seguimiento de calidad y operacion." navItems={adminNav}>
+    <AppShell title="Reportes" subtitle="Indicadores iniciales para seguimiento de calidad y operacion." navItems={adminNavItems}>
       <StatGrid
         stats={[
           { label: 'Citas pendientes', value: '8', detail: 'Muestra de referencia' },

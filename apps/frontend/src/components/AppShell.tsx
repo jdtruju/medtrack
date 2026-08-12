@@ -18,8 +18,8 @@ export function AppShell({ title, subtitle, navItems, children }: PropsWithChild
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  async function handleLogout() {
-    await logout();
+  function handleLogout() {
+    logout();
     navigate('/login');
   }
 

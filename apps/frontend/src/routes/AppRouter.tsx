@@ -2,12 +2,14 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 import { DoctorsPage } from '../pages/admin/DoctorsPage';
 import { ReportsPage } from '../pages/admin/ReportsPage';
+import { SchedulesPage } from '../pages/admin/SchedulesPage';
 import { SpecialtiesPage } from '../pages/admin/SpecialtiesPage';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
 import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 import { AppointmentsPage } from '../pages/patient/AppointmentsPage';
+import { AvailabilityPage } from '../pages/patient/AvailabilityPage';
 import { PatientDashboardPage } from '../pages/patient/PatientDashboardPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
@@ -25,6 +27,14 @@ export function AppRouter() {
         element={
           <ProtectedRoute allowedRoles={['PACIENTE']}>
             <PatientDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/patient/availability"
+        element={
+          <ProtectedRoute allowedRoles={['PACIENTE']}>
+            <AvailabilityPage />
           </ProtectedRoute>
         }
       />
@@ -50,6 +60,14 @@ export function AppRouter() {
         element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <DoctorsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/schedules"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <SchedulesPage />
           </ProtectedRoute>
         }
       />
