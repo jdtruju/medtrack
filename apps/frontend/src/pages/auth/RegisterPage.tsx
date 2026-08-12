@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { AuthLayout } from '../../components/AuthLayout';
 import { FormField } from '../../components/FormField';
 import { StatusMessage } from '../../components/StatusMessage';
-import { supabase } from '../../lib/supabaseClient';
+import { apiRequest } from '../../lib/api';
 
 export function RegisterPage() {
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
@@ -13,35 +13,23 @@ export function RegisterPage() {
     const formElement = event.currentTarget;
     setStatus(null);
     const form = new FormData(formElement);
-    const nombre = String(form.get('nombre') ?? '').trim();
 
-    if (!nombre) {
-      setStatus({ tone: 'error', message: 'El nombre es un campo obligatorio.' });
-      return;
-    }
-
-    const { error } = await supabase.auth.signUp({
-      email: String(form.get('email') ?? ''),
-      password: String(form.get('password') ?? ''),
-      options: {
-        data: {
-          nombre,
-          apellido: String(form.get('apellido') ?? ''),
-          telefono: String(form.get('telefono') ?? ''),
+    try {
+      const response = await apiRequest<{ message: string }>('/api/auth/register', {
+        method: 'POST',
+        body: {
+          nombre: form.get('nombre'),
+          apellido: form.get('apellido'),
+          email: form.get('email'),
+          telefono: form.get('telefono'),
+          password: form.get('password'),
         },
-      },
-    });
-
-    if (error) {
-      const message = error.message.toLowerCase().includes('already registered')
-        ? 'Este correo ya está registrado. Por favor inicia sesión o usa otro correo.'
-        : error.message;
-      setStatus({ tone: 'error', message });
-      return;
+      });
+      formElement.reset();
+      setStatus({ tone: 'success', message: response.message });
+    } catch (error) {
+      setStatus({ tone: 'error', message: (error as Error).message });
     }
-
-    formElement.reset();
-    setStatus({ tone: 'success', message: 'Cuenta creada exitosamente. Bienvenido a MedTrack.' });
   }
 
   return (

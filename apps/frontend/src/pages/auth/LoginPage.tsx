@@ -3,68 +3,27 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../../components/AuthLayout';
 import { FormField } from '../../components/FormField';
 import { StatusMessage } from '../../components/StatusMessage';
-import { supabase } from '../../lib/supabaseClient';
-
-interface LoginLockStatus {
-  bloqueado: boolean;
-  bloqueado_hasta: string | null;
-  intentos: number;
-}
-
-interface LoginAttemptResult {
-  bloqueado: boolean;
-  intentos: number;
-}
+import { useAuth } from '../../context/AuthContext';
+import { getSession } from '../../lib/api';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus(null);
     const form = new FormData(event.currentTarget);
-    const email = String(form.get('email') ?? '');
-    const password = String(form.get('password') ?? '');
 
-    const { data: lock } = await supabase.rpc('check_login_lock', { p_email: email });
-    const lockStatus = lock as LoginLockStatus | null;
-
-    if (lockStatus?.bloqueado) {
-      setStatus({ tone: 'error', message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.' });
-      return;
+    try {
+      await login(String(form.get('email') ?? ''), String(form.get('password') ?? ''));
+      setStatus({ tone: 'success', message: 'Inicio de sesion exitoso.' });
+      const { user } = getSession();
+      navigate(user?.rol === 'ADMIN' ? '/admin/dashboard' : '/patient/dashboard');
+    } catch (error) {
+      setStatus({ tone: 'error', message: (error as Error).message });
     }
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      const { data: attempt } = await supabase.rpc('record_login_attempt', {
-        p_email: email,
-        p_exitoso: false,
-      });
-      const attemptResult = attempt as LoginAttemptResult | null;
-
-      if (attemptResult?.bloqueado) {
-        setStatus({ tone: 'error', message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.' });
-      } else {
-        setStatus({
-          tone: 'error',
-          message: `Correo o contraseña incorrectos. Intento ${attemptResult?.intentos ?? 1} de 5.`,
-        });
-      }
-      return;
-    }
-
-    await supabase.rpc('record_login_attempt', { p_email: email, p_exitoso: true });
-
-    const { data: perfil } = await supabase
-      .from('perfiles')
-      .select('rol')
-      .eq('id', data.user!.id)
-      .single();
-
-    setStatus({ tone: 'success', message: 'Inicio de sesion exitoso.' });
-    navigate(perfil?.rol === 'ADMIN' ? '/admin/dashboard' : '/patient/dashboard');
   }
 
   return (
