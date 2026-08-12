@@ -1,13 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const autoTable = vi.fn();
-const save = vi.fn();
-const text = vi.fn();
+const { autoTable, save, text, docInstance } = vi.hoisted(() => {
+  const autoTable = vi.fn();
+  const save = vi.fn();
+  const text = vi.fn();
+  return { autoTable, save, text, docInstance: { text, save } };
+});
 
 vi.mock('jspdf', () => ({
-  jsPDF: vi.fn().mockImplementation(() => ({ text, autoTable, save })),
+  jsPDF: vi.fn().mockImplementation(() => docInstance),
 }));
-vi.mock('jspdf-autotable', () => ({}));
+// jspdf-autotable v5 expone su API como export default (la funcion autoTable(doc, options)),
+// no como un metodo agregado al prototipo de jsPDF. Mockeamos ese default export directamente
+// para que el test falle si exportPdf.ts vuelve a llamar doc.autoTable(...) en vez de autoTable(doc, ...).
+vi.mock('jspdf-autotable', () => ({ default: autoTable }));
 
 import { exportarTablaPdf } from '../src/lib/exportPdf';
 
@@ -21,7 +27,7 @@ describe('exportarTablaPdf', () => {
   it('genera la tabla con las columnas y filas dadas y descarga el pdf', () => {
     exportarTablaPdf('Reporte de citas', ['Paciente', 'Estado'], [['Ana Mora', 'CONFIRMADA']]);
 
-    expect(autoTable).toHaveBeenCalledWith({
+    expect(autoTable).toHaveBeenCalledWith(docInstance, {
       head: [['Paciente', 'Estado']],
       body: [['Ana Mora', 'CONFIRMADA']],
       startY: 22,
