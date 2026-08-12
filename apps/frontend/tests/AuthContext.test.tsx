@@ -1,16 +1,14 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SupabaseMock } from './mocks/supabaseMock';
 
-vi.mock('../src/lib/supabaseClient', async () => {
-  const { createSupabaseMock } = await import('./mocks/supabaseMock');
-  return { supabase: createSupabaseMock() };
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', fetchMock);
+  localStorage.clear();
 });
 
-import { supabase } from '../src/lib/supabaseClient';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
-
-const supabaseMock = supabase as unknown as SupabaseMock;
 
 function Probe() {
   const { user, loading } = useAuth();
@@ -19,15 +17,7 @@ function Probe() {
 }
 
 describe('AuthContext', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    supabaseMock.auth.getSession.mockResolvedValue({ data: { session: null } });
-    supabaseMock.auth.onAuthStateChange.mockReturnValue({
-      data: { subscription: { unsubscribe: vi.fn() } },
-    });
-  });
-
-  it('expone user en null cuando no hay sesion', async () => {
+  it('expone user en null cuando no hay sesion guardada', async () => {
     render(
       <AuthProvider>
         <Probe />
@@ -37,17 +27,12 @@ describe('AuthContext', () => {
     await waitFor(() => expect(screen.getByText('sin sesion')).toBeInTheDocument());
   });
 
-  it('carga el perfil desde la tabla perfiles cuando hay sesion', async () => {
-    supabaseMock.auth.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-1', email: 'ana@medtrack.test' } } },
-    });
-    const single = vi.fn().mockResolvedValue({
-      data: { nombre: 'Ana', apellido: 'Mora', rol: 'PACIENTE' },
-      error: null,
-    });
-    supabaseMock.from.mockReturnValue({
-      select: () => ({ eq: () => ({ single }) }),
-    });
+  it('lee la sesion guardada en localStorage al montar', async () => {
+    localStorage.setItem('medtrack.token', 'token-1');
+    localStorage.setItem(
+      'medtrack.user',
+      JSON.stringify({ id: 'user-1', email: 'ana@medtrack.test', nombre: 'Ana', apellido: 'Mora', rol: 'PACIENTE' })
+    );
 
     render(
       <AuthProvider>
