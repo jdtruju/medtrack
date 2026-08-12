@@ -6,30 +6,21 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "vitest run",
-    "prisma:generate": "prisma generate",
-    "seed:admin": "tsx prisma/seedAdmin.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@medtrack/shared": "*",
     "express": "^4.19.2",
     "cors": "^2.8.5",
-    "@prisma/client": "^5.18.0",
-    "zod": "^3.23.8",
-    "bcrypt": "^5.1.1",
-    "jsonwebtoken": "^9.0.2",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
     "tsx": "^4.16.5",
-    "prisma": "^5.18.0",
     "vitest": "^2.0.5",
     "supertest": "^7.0.0",
     "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
-    "@types/bcrypt": "^5.0.2",
-    "@types/jsonwebtoken": "^9.0.6",
     "@types/supertest": "^6.0.2",
     "@types/node": "^20.14.15"
   }
