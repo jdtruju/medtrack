@@ -1,6 +1,9 @@
 import { Router } from 'express';
+import type { AppServices } from '../services/appServices';
 import { healthRouter } from './health';
 
-export const apiRouter = Router();
-
-apiRouter.use(healthRouter);
+export function apiRouter(_services: AppServices) {
+  const router = Router();
+  router.use(healthRouter);
+  return router;
+}

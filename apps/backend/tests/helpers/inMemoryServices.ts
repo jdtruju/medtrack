@@ -1,0 +1,1 @@
+export { createInMemoryServices } from '../../src/repositories/inMemoryRepositories';
