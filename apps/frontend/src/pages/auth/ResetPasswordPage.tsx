@@ -1,29 +1,27 @@
 import { FormEvent, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { AuthLayout } from '../../components/AuthLayout';
 import { FormField } from '../../components/FormField';
 import { StatusMessage } from '../../components/StatusMessage';
-import { apiRequest } from '../../lib/api';
+import { supabase } from '../../lib/supabaseClient';
 
 export function ResetPasswordPage() {
-  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-  const token = searchParams.get('token') ?? '';
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus(null);
     const form = new FormData(event.currentTarget);
+    const password = String(form.get('password') ?? '');
 
-    try {
-      const response = await apiRequest<{ message: string }>('/auth/reset-password', {
-        method: 'POST',
-        body: { token, password: form.get('password') },
-      });
-      setStatus({ tone: 'success', message: response.message });
-    } catch (error) {
-      setStatus({ tone: 'error', message: (error as Error).message });
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+      setStatus({ tone: 'error', message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' });
+      return;
     }
+
+    setStatus({ tone: 'success', message: 'Contraseña actualizada correctamente.' });
   }
 
   return (

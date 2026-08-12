@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { AuthLayout } from '../../components/AuthLayout';
 import { FormField } from '../../components/FormField';
 import { StatusMessage } from '../../components/StatusMessage';
-import { apiRequest } from '../../lib/api';
+import { supabase } from '../../lib/supabaseClient';
 
 export function ForgotPasswordPage() {
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
@@ -12,16 +12,13 @@ export function ForgotPasswordPage() {
     event.preventDefault();
     setStatus(null);
     const form = new FormData(event.currentTarget);
+    const email = String(form.get('email') ?? '');
 
-    try {
-      const response = await apiRequest<{ message: string }>('/auth/forgot-password', {
-        method: 'POST',
-        body: { email: form.get('email') },
-      });
-      setStatus({ tone: 'success', message: response.message });
-    } catch (error) {
-      setStatus({ tone: 'error', message: (error as Error).message });
-    }
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    setStatus({ tone: 'success', message: 'Si el correo existe, recibirás un enlace de recuperación.' });
   }
 
   return (
