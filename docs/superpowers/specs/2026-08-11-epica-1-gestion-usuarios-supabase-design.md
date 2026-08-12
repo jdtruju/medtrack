@@ -1,5 +1,11 @@
 # Épica 1 — Gestión de Usuarios — Diseño (Supabase)
 
+> **SUPERADO:** este diseño hacía que el frontend hablara directo con Supabase
+> (Auth + tablas) sin backend real. El usuario decidió después que quiere un backend
+> Express real como intermediario (el Acta lista Express explícitamente). Ver
+> `2026-08-11-epica-1-v3-y-epica-2-express-design.md` para el diseño vigente. Se
+> conserva este documento solo como historial.
+
 **Fecha:** 2026-08-11
 **Alcance:** HU-01 (Registro de Pacientes), HU-02 (Inicio de Sesión), HU-03 (Recuperar
 Contraseña), HU-04 (Registrar Médico). Reemplaza el diseño anterior
