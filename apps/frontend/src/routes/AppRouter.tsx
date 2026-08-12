@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 import { DoctorsPage } from '../pages/admin/DoctorsPage';
+import { NotificationsPage } from '../pages/admin/NotificationsPage';
 import { ReportsPage } from '../pages/admin/ReportsPage';
 import { SchedulesPage } from '../pages/admin/SchedulesPage';
 import { SpecialtiesPage } from '../pages/admin/SpecialtiesPage';
@@ -84,6 +85,14 @@ export function AppRouter() {
         element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <ReportsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/notifications"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <NotificationsPage />
           </ProtectedRoute>
         }
       />

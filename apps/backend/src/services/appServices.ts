@@ -38,10 +38,14 @@ export interface AuthService {
 export interface Especialidad {
   id: string;
   nombre: string;
+  descripcion?: string;
 }
 
 export interface EspecialidadesService {
   list(): Promise<Especialidad[]>;
+  create(input: Omit<Especialidad, 'id'>): Promise<Result<Especialidad>>;
+  update(id: string, input: Omit<Especialidad, 'id'>): Promise<Result<Especialidad>>;
+  remove(id: string): Promise<Result<void>>;
 }
 
 export interface Medico {
@@ -79,9 +83,65 @@ export interface HorariosService {
   remove(id: string): Promise<Result<void>>;
 }
 
+export type EstadoCita = 'RESERVADA' | 'CANCELADA';
+
+export interface Cita {
+  id: string;
+  pacienteId: string;
+  pacienteEmail: string;
+  medicoId: string;
+  horarioId: string;
+  fecha: string;
+  horaInicio: string;
+  estado: EstadoCita;
+  motivoCancelacion?: string;
+  recordatorioEnviado: boolean;
+}
+
+export interface CrearCitaInput {
+  pacienteId: string;
+  pacienteEmail: string;
+  medicoId: string;
+  horarioId: string;
+  fecha: string;
+  horaInicio: string;
+}
+
+export interface CancelarCitaInput {
+  citaId: string;
+  pacienteId: string;
+  motivo: string;
+}
+
+export interface CitasService {
+  listAll(): Promise<Cita[]>;
+  listByPaciente(pacienteId: string): Promise<Cita[]>;
+  create(input: CrearCitaInput): Promise<Result<Cita>>;
+  cancel(input: CancelarCitaInput): Promise<Result<Cita>>;
+  send24HourReminders(now?: Date): Promise<{ processed: number }>;
+}
+
+export type TipoNotificacion = 'CONFIRMACION_RESERVA' | 'RECORDATORIO_24H' | 'CANCELACION_CITA';
+
+export interface Notificacion {
+  id: string;
+  usuarioId: string;
+  email: string;
+  tipo: TipoNotificacion;
+  citaId: string;
+  enviadoEn: string;
+  detalle?: string;
+}
+
+export interface NotificacionesService {
+  list(): Promise<Notificacion[]>;
+}
+
 export interface AppServices {
   auth: AuthService;
   especialidades: EspecialidadesService;
   medicos: MedicosService;
   horarios: HorariosService;
+  citas: CitasService;
+  notificaciones: NotificacionesService;
 }

@@ -42,8 +42,8 @@ medtrack/
 
 1. `npm install` en la raíz.
 2. Aplicar los archivos de `supabase/migrations/` en el SQL Editor del dashboard de Supabase, en orden (ver `supabase/README.md`).
-3. Copiar `.env.example` a `apps/backend/.env` y completar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API en el dashboard de Supabase — la `service_role key`, no la publishable).
-4. Copiar `apps/frontend/.env.example` a `apps/frontend/.env` con `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` (solo se usan para la suscripción Realtime de `AvailabilityPage`).
+3. Editar `apps/backend/.env` y completar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API en el dashboard de Supabase — la `service_role key`, no la publishable).
+4. Editar `apps/frontend/.env` con `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` (solo se usan para la suscripción Realtime de `AvailabilityPage`).
 5. `npm run dev:backend` — levanta la API en `http://localhost:4000`.
 6. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
 7. `npm test` — corre las pruebas de todos los workspaces.
@@ -55,6 +55,19 @@ medtrack/
 - El bloqueo de cuenta tras 5 intentos fallidos vive en las funciones Postgres `check_login_lock`/`record_login_attempt`, llamadas desde Express.
 - Para crear el primer usuario ADMIN, ver `supabase/README.md`.
 - HU-06 ("solo horarios libres") hoy muestra todos los horarios creados — excluir los horarios con una cita activa queda para cuando exista la Épica 3.
+
+## Notas de Epica 4 (Notificaciones)
+
+- Migracion nueva: `supabase/migrations/0006_citas_notificaciones.sql`, con tablas `citas` y `notificaciones`.
+- Endpoints backend:
+  - `POST /api/citas` reserva una cita y registra notificacion `CONFIRMACION_RESERVA`.
+  - `GET /api/citas` lista las citas del paciente autenticado.
+  - `POST /api/citas/:id/cancelar` cancela una cita y registra `CANCELACION_CITA` con motivo.
+  - `POST /api/citas/recordatorios/run` permite a un ADMIN disparar manualmente el procesamiento de recordatorios.
+  - `GET /api/notificaciones` permite a un ADMIN auditar quien, cuando y que tipo de notificacion se envio.
+- Correo documentado: por defecto `EMAIL_PROVIDER=mock` escribe el envio en consola con prefijo `[correo-mock]` y registra la notificacion en BD. Para envio real simple se puede usar Resend con `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` y `RESEND_FROM` en `apps/backend/.env`.
+- Pantalla admin: `/admin/notifications` lista y filtra notificaciones registradas por tipo.
+- Job preparado: `apps/backend/src/jobs/reminderJob.ts` ejecuta `send24HourReminders()` al iniciar el backend y luego cada hora. El servicio solo envia recordatorios de citas reservadas dentro de la ventana de 24 horas y marca `recordatorioEnviado` para evitar duplicados.
 
 ## Backlog (fuente: ProductBacklog_MedTrack.pdf, Julio 2026)
 
@@ -78,9 +91,9 @@ medtrack/
 
 ### Épica 4 – Notificaciones
 
-- [ ] HU-10 Confirmación por Correo — pendiente
-- [ ] HU-11 Recordatorio de Citas — pendiente
-- [ ] HU-12 Notificación de Cancelación — pendiente
+- [x] HU-10 Confirmación por Correo — completada en Sprint 3 con correo mock registrado en BD
+- [x] HU-11 Recordatorio de Citas — completada en Sprint 3 con job preparado
+- [x] HU-12 Notificación de Cancelación — completada en Sprint 3 con motivo registrado
 
 ### Épica 5 – Reportes
 

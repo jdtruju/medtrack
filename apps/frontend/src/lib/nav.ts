@@ -8,6 +8,7 @@ export const adminNavItems: NavItem[] = [
   { label: 'Medicos', to: '/admin/doctors' },
   { label: 'Horarios', to: '/admin/schedules' },
   { label: 'Especialidades', to: '/admin/specialties' },
+  { label: 'Notificaciones', to: '/admin/notifications' },
   { label: 'Reportes', to: '/admin/reports' },
 ];
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AppShell, WorkPanel } from '../../components/AppShell';
-import { apiRequest, getSession } from '../../lib/api';
+import { apiRequest, diasSemana, getSession } from '../../lib/api';
 import { patientNavItems } from '../../lib/nav';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -46,7 +47,6 @@ export function AvailabilityPage() {
 
   useEffect(() => {
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [especialidadId]);
 
   useEffect(() => {
@@ -60,7 +60,6 @@ export function AvailabilityPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function medicoLabel(medicoId: string) {
@@ -93,10 +92,20 @@ export function AvailabilityPage() {
         {horarios.length ? (
           horarios.map((horario) => (
             <div key={horario.id} className="rounded-md border border-slate-200 bg-white p-4">
-              <p className="font-semibold">{medicoLabel(horario.medicoId)}</p>
-              <p className="mt-1 text-sm text-slate-600">
-                {horario.diaSemana} {horario.horaInicio} - {horario.horaFin}
-              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold">{medicoLabel(horario.medicoId)}</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {diasSemana[horario.diaSemana]} · {horario.horaInicio} - {horario.horaFin}
+                  </p>
+                </div>
+                <Link
+                  className="rounded-md bg-teal-700 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-teal-800"
+                  to="/patient/appointments"
+                >
+                  Reservar
+                </Link>
+              </div>
             </div>
           ))
         ) : (

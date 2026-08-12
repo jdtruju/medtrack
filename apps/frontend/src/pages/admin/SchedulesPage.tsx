@@ -32,13 +32,16 @@ export function SchedulesPage() {
   const [medicos, setMedicos] = useState<MedicoOption[]>([]);
   const [medicoId, setMedicoId] = useState('');
   const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [loadingMedicos, setLoadingMedicos] = useState(true);
+  const [loadingHorarios, setLoadingHorarios] = useState(false);
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     const { token } = getSession();
     apiRequest<{ medicos: MedicoOption[] }>('/api/medicos', { token })
       .then((response) => setMedicos(response.medicos))
-      .catch(() => setMedicos([]));
+      .catch(() => setMedicos([]))
+      .finally(() => setLoadingMedicos(false));
   }, []);
 
   useEffect(() => {
@@ -47,9 +50,11 @@ export function SchedulesPage() {
       return;
     }
     const { token } = getSession();
+    setLoadingHorarios(true);
     apiRequest<{ horarios: Horario[] }>(`/api/horarios?medicoId=${medicoId}`, { token })
       .then((response) => setHorarios(response.horarios))
-      .catch(() => setHorarios([]));
+      .catch(() => setHorarios([]))
+      .finally(() => setLoadingHorarios(false));
   }, [medicoId]);
 
   async function refetchHorarios() {
@@ -100,7 +105,7 @@ export function SchedulesPage() {
               onChange={(event) => setMedicoId(event.target.value)}
               className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
             >
-              <option value="">Seleccione un medico</option>
+              <option value="">{loadingMedicos ? 'Cargando medicos...' : 'Seleccione un medico'}</option>
               {medicos.map((medico) => (
                 <option key={medico.id} value={medico.id}>
                   {medico.nombre} {medico.apellido}
@@ -157,7 +162,9 @@ export function SchedulesPage() {
         </WorkPanel>
 
         <WorkPanel title="Horarios configurados">
-          {horarios.length ? (
+          {loadingHorarios ? (
+            <p className="text-sm text-slate-600">Cargando horarios...</p>
+          ) : horarios.length ? (
             <div className="space-y-3">
               {horarios.map((horario) => (
                 <div key={horario.id} className="flex items-center justify-between rounded-md border border-slate-200 p-3">

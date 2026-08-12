@@ -1,28 +1,53 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppShell, StatGrid, WorkPanel } from '../../components/AppShell';
+import { apiRequest, Cita, getSession } from '../../lib/api';
 import { patientNavItems } from '../../lib/nav';
 
 export function PatientDashboardPage() {
+  const [citas, setCitas] = useState<Cita[]>([]);
+
+  useEffect(() => {
+    const { token } = getSession();
+    apiRequest<{ citas: Cita[] }>('/api/citas', { token })
+      .then((response) => setCitas(response.citas))
+      .catch(() => setCitas([]));
+  }, []);
+
+  const activas = citas.filter((cita) => cita.estado === 'RESERVADA');
+  const canceladas = citas.filter((cita) => cita.estado === 'CANCELADA');
+  const proxima = activas[0];
+
   return (
     <AppShell title="Panel del paciente" subtitle="Resumen de citas y estado de la cuenta." navItems={patientNavItems}>
       <StatGrid
         stats={[
-          { label: 'Citas pendientes', value: '0', detail: 'Sin solicitudes activas' },
-          { label: 'Citas completadas', value: '0', detail: 'Historial inicial' },
-          { label: 'Notificaciones', value: '0', detail: 'Sin mensajes nuevos' },
-          { label: 'Estado', value: 'Activo', detail: 'Cuenta habilitada' },
+          { label: 'Citas activas', value: String(activas.length), detail: 'Reservas vigentes', tone: 'teal' },
+          { label: 'Canceladas', value: String(canceladas.length), detail: 'Con motivo registrado', tone: 'rose' },
+          { label: 'Recordatorios', value: String(activas.filter((cita) => cita.recordatorioEnviado).length), detail: '24h enviados', tone: 'amber' },
+          { label: 'Estado', value: 'Activo', detail: 'Cuenta habilitada', tone: 'blue' },
         ]}
       />
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         <WorkPanel title="Cuenta del paciente">
-          <p className="text-sm leading-6 text-slate-600">
-            La cuenta esta lista para solicitar citas cuando se implemente la gestion de agenda en la siguiente epica.
-          </p>
+          {proxima ? (
+            <p className="text-sm leading-6 text-slate-600">
+              Tu proxima cita esta reservada para el {proxima.fecha} a las {proxima.horaInicio}. Recibiras confirmacion
+              y recordatorio desde el canal mock registrado por el sistema.
+            </p>
+          ) : (
+            <p className="text-sm leading-6 text-slate-600">No tenes citas activas. Podes revisar disponibilidad y reservar un horario.</p>
+          )}
         </WorkPanel>
         <WorkPanel title="Acceso rapido">
-          <Link className="inline-flex rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800" to="/patient/appointments">
-            Ver mis citas
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link className="inline-flex rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800" to="/patient/appointments">
+              Reservar cita
+            </Link>
+            <Link className="inline-flex rounded-md border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" to="/patient/availability">
+              Ver disponibilidad
+            </Link>
+          </div>
         </WorkPanel>
       </section>
     </AppShell>
