@@ -1,5 +1,12 @@
 # Épica 1 — Gestión de Usuarios — Diseño
 
+> **SUPERADO:** este diseño asumía Express + Prisma + JWT/bcrypt propios. Tras confirmar
+> con el Acta Constitutiva real (`Acta constitutiva (1).pdf`, no la plantilla vacía) que
+> el stack incluye Supabase, y que el usuario quiere Supabase Auth + cliente JS para
+> Épica 1 completa, este documento queda reemplazado por
+> `2026-08-11-epica-1-gestion-usuarios-supabase-design.md`. Se conserva solo como
+> historial de la decisión original.
+
 **Fecha:** 2026-08-11
 **Alcance:** HU-01 (Registro de Pacientes), HU-02 (Inicio de Sesión), HU-03 (Recuperar
 Contraseña), HU-04 (Registrar Médico). Backend + frontend + pruebas por cada historia.
