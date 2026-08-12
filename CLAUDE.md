@@ -7,11 +7,10 @@ cómo correrlo, y el backlog oficial con su estado.
 ## Stack
 
 - **Frontend:** React + TypeScript + Vite + Tailwind CSS + React Router
-- **Backend:** Node.js + Express + TypeScript
-- **Base de datos:** PostgreSQL vía Prisma ORM
-- **Autenticación:** JWT + bcrypt (esquema de datos listo, lógica pendiente de implementar)
-- **Validación:** Zod (frontend y backend)
-- **Testing:** Vitest (+ supertest en backend, + React Testing Library en frontend)
+- **Backend:** Node.js + Express + TypeScript (solo `/health` en esta fase — Épica 1 corre directo contra Supabase)
+- **Base de datos y autenticación:** Supabase (PostgreSQL + Supabase Auth), sin ORM — esquema en `supabase/migrations/*.sql`, aplicado a mano en el SQL Editor del dashboard
+- **Validación:** Zod (frontend)
+- **Testing:** Vitest (+ supertest en backend, + React Testing Library en frontend, mockeando `@supabase/supabase-js`)
 - **Monorepo:** npm workspaces
 
 ## Estructura de carpetas
@@ -40,22 +39,19 @@ medtrack/
 
 ## Cómo correr el proyecto
 
-1. `npm install` en la raíz — instala los tres workspaces (`apps/backend`, `apps/frontend`, `packages/shared`).
-2. Copiar `.env.example` a `apps/backend/.env`. Para desarrollo inicial dejar `USE_IN_MEMORY_DB=true`.
-3. `npm run dev:backend` — levanta la API en `http://localhost:4000` (probar `GET /health`).
-4. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
-5. `npm test` — corre las pruebas de todos los workspaces.
+1. `npm install` en la raíz.
+2. Copiar `apps/frontend/.env.example` a `apps/frontend/.env` con las credenciales de tu proyecto Supabase (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`).
+3. Aplicar los archivos de `supabase/migrations/` en el SQL Editor del dashboard de Supabase, en orden (ver `supabase/README.md`).
+4. `npm run dev:backend` — levanta la API en `http://localhost:4000` (solo `GET /health`).
+5. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
+6. `npm test` — corre las pruebas de todos los workspaces.
 
-Cuando se implemente base de datos persistente, cambiar `USE_IN_MEMORY_DB=false`, configurar `DATABASE_URL`,
-correr `npm run prisma:generate --workspace=apps/backend` y luego `npx prisma db push --schema apps/backend/prisma/schema.prisma`.
+## Notas de Épica 1 (Supabase)
 
-## Notas de Sprint 1
-
-- El envío de correos de recuperación está simulado con `MockMailService`. En desarrollo registra el enlace/token en logs del backend y en memoria para pruebas; debe reemplazarse por SMTP/proveedor real antes de producción.
-- Sprint 1 corre sin PostgreSQL usando repositorios en memoria (`USE_IN_MEMORY_DB=true`). Los datos se reinician al reiniciar el backend.
-- Usuario admin de desarrollo: `admin@medtrack.test` / `Admin12345`.
-- La recuperación de contraseña usa tokens de 30 minutos en la tabla `password_reset_tokens`.
-- El bloqueo de inicio de sesión se activa al tercer intento fallido y dura 15 minutos.
+- El registro, login, recuperación de contraseña y registro de médicos se hacen directo desde el frontend contra Supabase (`@supabase/supabase-js`), sin pasar por Express.
+- El correo de recuperación de contraseña es real (lo envía Supabase Auth) — ya no hay mock.
+- El bloqueo de cuenta tras 5 intentos fallidos vive en las funciones Postgres `check_login_lock`/`record_login_attempt` (`supabase/migrations/0004_login_attempts.sql`), no en Express.
+- Para crear el primer usuario ADMIN, ver `supabase/README.md`.
 
 ## Backlog (fuente: ProductBacklog_MedTrack.pdf, Julio 2026)
 
