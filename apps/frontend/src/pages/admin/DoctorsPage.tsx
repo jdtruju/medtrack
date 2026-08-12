@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { AppShell, WorkPanel } from '../../components/AppShell';
 import { FormField } from '../../components/FormField';
 import { StatusMessage } from '../../components/StatusMessage';
-import { apiRequest, getSession } from '../../lib/api';
+import { supabase } from '../../lib/supabaseClient';
 
 interface Specialty {
   id: string;
@@ -30,9 +30,10 @@ export function DoctorsPage() {
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    apiRequest<{ specialties: Specialty[] }>('/specialties')
-      .then((response) => setSpecialties(response.specialties))
-      .catch(() => setSpecialties([]));
+    supabase
+      .from('especialidades')
+      .select('id, nombre')
+      .then(({ data }: { data: Specialty[] | null }) => setSpecialties(data ?? []));
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -40,41 +41,39 @@ export function DoctorsPage() {
     const formElement = event.currentTarget;
     setStatus(null);
     const form = new FormData(formElement);
-    const { token } = getSession();
-    const selectedSpecialtyId = String(form.get('especialidadId') ?? '');
-    const selectedSpecialty = specialties.find((item) => item.id === selectedSpecialtyId);
-    const especialidadNombre = selectedSpecialty?.nombre || String(form.get('especialidadNombre') ?? '');
+    const especialidadId = String(form.get('especialidadId') ?? '');
+    const especialidad = specialties.find((item) => item.id === especialidadId);
 
-    try {
-      const response = await apiRequest<{ message: string }>('/doctors', {
-        method: 'POST',
-        token,
-        body: {
-          nombre: form.get('nombre'),
-          apellido: form.get('apellido'),
-          email: form.get('email'),
-          telefono: form.get('telefono'),
-          licencia: form.get('licencia'),
-          especialidadId: selectedSpecialtyId || undefined,
-          especialidadNombre: selectedSpecialtyId ? undefined : form.get('especialidadNombre'),
-        },
-      });
+    const { error } = await supabase.from('medicos').insert({
+      nombre: form.get('nombre'),
+      apellido: form.get('apellido'),
+      email: form.get('email'),
+      telefono: form.get('telefono'),
+      licencia: form.get('licencia'),
+      especialidad_id: especialidadId,
+    });
 
-      setCreatedDoctors((current) => [
-        {
-          nombre: String(form.get('nombre') ?? ''),
-          apellido: String(form.get('apellido') ?? ''),
-          email: String(form.get('email') ?? ''),
-          licencia: String(form.get('licencia') ?? ''),
-          especialidad: especialidadNombre || 'Medicina general',
-        },
-        ...current,
-      ]);
-      formElement.reset();
-      setStatus({ tone: 'success', message: response.message });
-    } catch (error) {
-      setStatus({ tone: 'error', message: (error as Error).message });
+    if (error) {
+      const message =
+        error.code === '23505'
+          ? 'Ya existe un médico con esta cédula profesional.'
+          : error.message;
+      setStatus({ tone: 'error', message });
+      return;
     }
+
+    setCreatedDoctors((current) => [
+      {
+        nombre: String(form.get('nombre') ?? ''),
+        apellido: String(form.get('apellido') ?? ''),
+        email: String(form.get('email') ?? ''),
+        licencia: String(form.get('licencia') ?? ''),
+        especialidad: especialidad?.nombre ?? '',
+      },
+      ...current,
+    ]);
+    formElement.reset();
+    setStatus({ tone: 'success', message: 'Médico registrado correctamente.' });
   }
 
   return (
@@ -92,24 +91,22 @@ export function DoctorsPage() {
             </div>
             <FormField id="licencia" name="licencia" label="Numero de licencia" required />
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-semibold text-slate-700" htmlFor="especialidadId">
-                Especialidad existente
-                <select
-                  id="especialidadId"
-                  name="especialidadId"
-                  className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                >
-                  <option value="">Crear nueva especialidad</option>
-                  {specialties.map((specialty) => (
-                    <option key={specialty.id} value={specialty.id}>
-                      {specialty.nombre}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <FormField id="especialidadNombre" name="especialidadNombre" label="Nueva especialidad" />
-            </div>
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="especialidadId">
+              Especialidad
+              <select
+                id="especialidadId"
+                name="especialidadId"
+                required
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"
+              >
+                <option value="">Seleccione una especialidad</option>
+                {specialties.map((specialty) => (
+                  <option key={specialty.id} value={specialty.id}>
+                    {specialty.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             {status ? <StatusMessage tone={status.tone} message={status.message} /> : null}
             <button className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800 sm:w-fit">
