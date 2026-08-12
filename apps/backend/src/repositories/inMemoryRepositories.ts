@@ -183,7 +183,7 @@ export function createInMemoryServices() {
       const ocupadas = new Set(
         citas
           .filter((c) => c.medicoId === medicoId && c.estado === 'CONFIRMADA' && c.fechaHora.startsWith(fecha))
-          .map((c) => c.fechaHora.split('T')[1])
+          .map((c) => c.fechaHora.split('T')[1]!)
       );
       return franjasValidas.filter((hora) => !ocupadas.has(hora));
     },
@@ -193,7 +193,7 @@ export function createInMemoryServices() {
         return { ok: false, error: { status: 404, message: 'Médico no encontrado.' } };
       }
 
-      const [fecha, hora] = fechaHora.split('T');
+      const [fecha, hora] = fechaHora.split('T') as [string, string];
       const dia = diaSemanaDeFecha(fecha);
       const franjasValidas = horarios
         .filter((h) => h.medicoId === medicoId && h.diaSemana === dia)
@@ -236,7 +236,7 @@ export function createInMemoryServices() {
         return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
       }
 
-      const [fecha, hora] = fechaHora.split('T');
+      const [fecha, hora] = fechaHora.split('T') as [string, string];
       const dia = diaSemanaDeFecha(fecha);
       const franjasValidas = horarios
         .filter((h) => h.medicoId === cita.medicoId && h.diaSemana === dia)
