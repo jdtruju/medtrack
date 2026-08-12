@@ -9,6 +9,7 @@ import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
 import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 import { AppointmentsPage } from '../pages/patient/AppointmentsPage';
+import { AvailabilityPage } from '../pages/patient/AvailabilityPage';
 import { PatientDashboardPage } from '../pages/patient/PatientDashboardPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
@@ -26,6 +27,14 @@ export function AppRouter() {
         element={
           <ProtectedRoute allowedRoles={['PACIENTE']}>
             <PatientDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/patient/availability"
+        element={
+          <ProtectedRoute allowedRoles={['PACIENTE']}>
+            <AvailabilityPage />
           </ProtectedRoute>
         }
       />
