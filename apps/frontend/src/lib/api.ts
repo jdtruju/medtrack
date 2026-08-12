@@ -49,27 +49,6 @@ export interface Medico {
   especialidadId: string;
 }
 
-export interface Horario {
-  id: string;
-  medicoId: string;
-  diaSemana: string;
-  horaInicio: string;
-  horaFin: string;
-}
-
-export interface Cita {
-  id: string;
-  pacienteId: string;
-  pacienteEmail: string;
-  medicoId: string;
-  horarioId: string;
-  fecha: string;
-  horaInicio: string;
-  estado: 'RESERVADA' | 'CANCELADA';
-  motivoCancelacion?: string;
-  recordatorioEnviado: boolean;
-}
-
 export interface Notificacion {
   id: string;
   usuarioId: string;
@@ -79,16 +58,6 @@ export interface Notificacion {
   enviadoEn: string;
   detalle?: string;
 }
-
-export const diasSemana: Record<string, string> = {
-  LUN: 'Lunes',
-  MAR: 'Martes',
-  MIE: 'Miercoles',
-  JUE: 'Jueves',
-  VIE: 'Viernes',
-  SAB: 'Sabado',
-  DOM: 'Domingo',
-};
 
 export function saveSession(token: string, user: SessionUser): void {
   localStorage.setItem('medtrack.token', token);

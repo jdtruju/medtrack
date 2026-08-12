@@ -93,4 +93,33 @@ describe('AvailabilityPage', () => {
 
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(6));
   });
+
+  it('HU-07 permite reservar una franja disponible', async () => {
+    mockJsonResponse({ especialidades: [] });
+    mockJsonResponse({ medicos: [{ id: 'med-1', nombre: 'Dr', apellido: 'Lopez', especialidadId: 'esp-1' }] });
+    mockJsonResponse({ horarios: [{ id: 'h1', medicoId: 'med-1', diaSemana: 'JUE', horaInicio: '08:00', horaFin: '12:00' }] });
+
+    renderPage();
+    await screen.findByText(/Dr Lopez/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reservar' }));
+
+    mockJsonResponse({ franjas: ['08:00', '08:30', '09:00'] });
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-07-16' } });
+
+    await waitFor(() => expect(screen.getByLabelText('Hora disponible')).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Hora disponible'), { target: { value: '08:30' } });
+
+    mockJsonResponse({ message: 'Tu cita ha sido agendada exitosamente.', cita: { id: 'c1' } }, true, 201);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar reserva' }));
+
+    expect(await screen.findByText('Tu cita ha sido agendada exitosamente.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/citas'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ medicoId: 'med-1', fechaHora: '2026-07-16T08:30' }),
+      })
+    );
+  });
 });

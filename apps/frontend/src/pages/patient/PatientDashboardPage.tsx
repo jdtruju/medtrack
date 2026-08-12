@@ -1,20 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppShell, StatGrid, WorkPanel } from '../../components/AppShell';
-import { apiRequest, Cita, getSession } from '../../lib/api';
+import { apiRequest, getSession } from '../../lib/api';
 import { patientNavItems } from '../../lib/nav';
 
+interface CitaPaciente {
+  id: string;
+  fechaHora: string;
+  estado: 'CONFIRMADA' | 'CANCELADA';
+  recordatorioEnviado: boolean;
+}
+
 export function PatientDashboardPage() {
-  const [citas, setCitas] = useState<Cita[]>([]);
+  const [citas, setCitas] = useState<CitaPaciente[]>([]);
 
   useEffect(() => {
     const { token } = getSession();
-    apiRequest<{ citas: Cita[] }>('/api/citas', { token })
+    apiRequest<{ citas: CitaPaciente[] }>('/api/citas', { token })
       .then((response) => setCitas(response.citas))
       .catch(() => setCitas([]));
   }, []);
 
-  const activas = citas.filter((cita) => cita.estado === 'RESERVADA');
+  const activas = citas.filter((cita) => cita.estado === 'CONFIRMADA');
   const canceladas = citas.filter((cita) => cita.estado === 'CANCELADA');
   const proxima = activas[0];
 
@@ -32,7 +39,7 @@ export function PatientDashboardPage() {
         <WorkPanel title="Cuenta del paciente">
           {proxima ? (
             <p className="text-sm leading-6 text-slate-600">
-              Tu proxima cita esta reservada para el {proxima.fecha} a las {proxima.horaInicio}. Recibiras confirmacion
+              Tu proxima cita esta reservada para el {proxima.fechaHora.replace('T', ' a las ')}. Recibiras confirmacion
               y recordatorio desde el canal mock registrado por el sistema.
             </p>
           ) : (

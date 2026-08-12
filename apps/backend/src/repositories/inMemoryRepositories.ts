@@ -1,3 +1,9 @@
+import {
+  diaSemanaDeFecha,
+  fechaDeDiaEnSemana,
+  generarFranjas,
+  rangoSemanaActual,
+} from '../lib/citasSlots';
 import type {
   AuthService,
   Cita,
@@ -10,6 +16,8 @@ import type {
   MedicosService,
   Notificacion,
   NotificacionesService,
+  OcupacionMedico,
+  ReportesService,
   TipoNotificacion,
 } from '../services/appServices';
 
@@ -39,12 +47,13 @@ export function createInMemoryServices() {
   const horarios: Horario[] = [];
   const citas: Cita[] = [];
   const notificaciones: Notificacion[] = [];
-  const correosMock: Array<{ to: string; subject: string; body: string }> = [];
   let nextId = 1;
   const newId = (prefix: string) => `${prefix}-${nextId++}`;
 
-  const sendMockEmail = (to: string, subject: string, body: string) => {
-    correosMock.push({ to, subject, body });
+  const subjectByTipo = (tipo: TipoNotificacion) => {
+    if (tipo === 'CONFIRMACION_RESERVA') return 'Confirmacion de cita MedTrack';
+    if (tipo === 'RECORDATORIO_24H') return 'Recordatorio de cita MedTrack';
+    return 'Cancelacion de cita MedTrack';
   };
 
   const registrarNotificacion = (input: {
@@ -64,14 +73,8 @@ export function createInMemoryServices() {
       detalle: input.detalle,
     };
     notificaciones.push(notificacion);
-    sendMockEmail(input.email, subjectByTipo(input.tipo), input.detalle ?? `Notificacion ${input.tipo}`);
+    console.info('[correo-mock]', { to: input.email, subject: subjectByTipo(input.tipo), text: input.detalle });
     return notificacion;
-  };
-
-  const subjectByTipo = (tipo: TipoNotificacion) => {
-    if (tipo === 'CONFIRMACION_RESERVA') return 'Confirmacion de cita MedTrack';
-    if (tipo === 'RECORDATORIO_24H') return 'Recordatorio de cita MedTrack';
-    return 'Cancelacion de cita MedTrack';
   };
 
   const auth: AuthService = {
@@ -79,10 +82,21 @@ export function createInMemoryServices() {
       if (users.some((u) => u.email === email)) {
         return {
           ok: false,
-          error: { status: 409, message: 'Este correo ya está registrado. Por favor inicia sesión o usa otro correo.' },
+          error: {
+            status: 409,
+            message: 'Este correo ya está registrado. Por favor inicia sesión o usa otro correo.',
+          },
         };
       }
-      users.push({ id: newId('user'), email, password, nombre, apellido, telefono, rol: 'PACIENTE' });
+      users.push({
+        id: newId('user'),
+        email,
+        password,
+        nombre,
+        apellido,
+        telefono,
+        rol: 'PACIENTE',
+      });
       return { ok: true, value: undefined };
     },
     async login(email, password) {
@@ -90,7 +104,10 @@ export function createInMemoryServices() {
       if (lock?.bloqueadoHasta && lock.bloqueadoHasta > Date.now()) {
         return {
           ok: false,
-          error: { status: 403, message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.' },
+          error: {
+            status: 403,
+            message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.',
+          },
         };
       }
 
@@ -103,13 +120,19 @@ export function createInMemoryServices() {
           loginAttempts.set(email, current);
           return {
             ok: false,
-            error: { status: 403, message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.' },
+            error: {
+              status: 403,
+              message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.',
+            },
           };
         }
         loginAttempts.set(email, current);
         return {
           ok: false,
-          error: { status: 401, message: `Correo o contraseña incorrectos. Intento ${current.intentos} de 5.` },
+          error: {
+            status: 401,
+            message: `Correo o contraseña incorrectos. Intento ${current.intentos} de 5.`,
+          },
         };
       }
 
@@ -120,7 +143,13 @@ export function createInMemoryServices() {
         ok: true,
         value: {
           token,
-          usuario: { id: user.id, email: user.email, nombre: user.nombre, apellido: user.apellido, rol: user.rol },
+          usuario: {
+            id: user.id,
+            email: user.email,
+            nombre: user.nombre,
+            apellido: user.apellido,
+            rol: user.rol,
+          },
         },
       };
     },
@@ -130,11 +159,17 @@ export function createInMemoryServices() {
     async resetPassword(accessToken, password) {
       const userId = tokens.get(accessToken);
       if (!userId) {
-        return { ok: false, error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' },
+        };
       }
       const user = users.find((u) => u.id === userId);
       if (!user) {
-        return { ok: false, error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' },
+        };
       }
       user.password = password;
       return { ok: true, value: undefined };
@@ -202,7 +237,10 @@ export function createInMemoryServices() {
         return { ok: false, error: { status: 404, message: 'Especialidad no encontrada.' } };
       }
       if (medicos.some((m) => m.licencia === input.licencia)) {
-        return { ok: false, error: { status: 409, message: 'Ya existe un médico con esta cédula profesional.' } };
+        return {
+          ok: false,
+          error: { status: 409, message: 'Ya existe un médico con esta cédula profesional.' },
+        };
       }
       const medico: Medico = { id: newId('medico'), ...input };
       medicos.push(medico);
@@ -223,7 +261,10 @@ export function createInMemoryServices() {
     },
     async create(input) {
       if (input.horaFin <= input.horaInicio) {
-        return { ok: false, error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
+        };
       }
       const horario: Horario = { id: newId('horario'), ...input };
       horarios.push(horario);
@@ -235,7 +276,10 @@ export function createInMemoryServices() {
         return { ok: false, error: { status: 404, message: 'Horario no encontrado.' } };
       }
       if (input.horaFin <= input.horaInicio) {
-        return { ok: false, error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
+        };
       }
       horarios[index] = { id, ...input };
       return { ok: true, value: horarios[index] };
@@ -251,82 +295,163 @@ export function createInMemoryServices() {
   };
 
   const citasService: CitasService = {
-    async listAll() {
-      return citas;
-    },
-    async listByPaciente(pacienteId) {
-      return citas.filter((cita) => cita.pacienteId === pacienteId);
-    },
-    async create(input) {
-      const horario = horarios.find((h) => h.id === input.horarioId && h.medicoId === input.medicoId);
-      if (!horario) {
-        return { ok: false, error: { status: 404, message: 'Horario no encontrado.' } };
-      }
-      const ocupada = citas.some(
-        (cita) =>
-          cita.estado === 'RESERVADA' &&
-          cita.medicoId === input.medicoId &&
-          cita.fecha === input.fecha &&
-          cita.horaInicio === input.horaInicio,
+    async listSlotsDisponibles(medicoId, fecha) {
+      const dia = diaSemanaDeFecha(fecha);
+      const bloques = horarios.filter((h) => h.medicoId === medicoId && h.diaSemana === dia);
+      const franjasValidas = bloques.flatMap((h) => generarFranjas(h.horaInicio, h.horaFin));
+      const ocupadas = new Set(
+        citas
+          .filter(
+            (c) =>
+              c.medicoId === medicoId && c.estado === 'CONFIRMADA' && c.fechaHora.startsWith(fecha)
+          )
+          .map((c) => c.fechaHora.split('T')[1]!)
       );
-      if (ocupada) {
-        return { ok: false, error: { status: 409, message: 'Este horario ya fue reservado.' } };
+      return franjasValidas.filter((hora) => !ocupadas.has(hora));
+    },
+    async create({ pacienteId, medicoId, fechaHora }) {
+      const medico = medicos.find((m) => m.id === medicoId);
+      if (!medico) {
+        return { ok: false, error: { status: 404, message: 'Médico no encontrado.' } };
+      }
+
+      const [fecha, hora] = fechaHora.split('T') as [string, string];
+      const dia = diaSemanaDeFecha(fecha);
+      const franjasValidas = horarios
+        .filter((h) => h.medicoId === medicoId && h.diaSemana === dia)
+        .flatMap((h) => generarFranjas(h.horaInicio, h.horaFin));
+
+      if (!franjasValidas.includes(hora)) {
+        return {
+          ok: false,
+          error: {
+            status: 400,
+            message: 'El horario seleccionado no está disponible. Elige otro para continuar.',
+          },
+        };
+      }
+
+      const ocupado = citas.some(
+        (c) => c.medicoId === medicoId && c.fechaHora === fechaHora && c.estado === 'CONFIRMADA'
+      );
+      if (ocupado) {
+        return {
+          ok: false,
+          error: {
+            status: 409,
+            message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.',
+          },
+        };
       }
 
       const cita: Cita = {
         id: newId('cita'),
-        ...input,
-        estado: 'RESERVADA',
+        pacienteId,
+        medicoId,
+        especialidadId: medico.especialidadId,
+        fechaHora,
+        estado: 'CONFIRMADA',
         recordatorioEnviado: false,
       };
       citas.push(cita);
+
+      const paciente = users.find((u) => u.id === pacienteId);
       registrarNotificacion({
-        usuarioId: input.pacienteId,
-        email: input.pacienteEmail,
+        usuarioId: pacienteId,
+        email: paciente?.email ?? '',
         tipo: 'CONFIRMACION_RESERVA',
         citaId: cita.id,
-        detalle: `Cita reservada para ${input.fecha} a las ${input.horaInicio}.`,
+        detalle: `Cita reservada para ${fechaHora.replace('T', ' ')}.`,
       });
+
       return { ok: true, value: cita };
     },
-    async cancel({ citaId, pacienteId, motivo }) {
-      const cita = citas.find((current) => current.id === citaId && current.pacienteId === pacienteId);
+    async listByPaciente(pacienteId) {
+      return citas.filter((c) => c.pacienteId === pacienteId);
+    },
+    async reprogramar(id, pacienteId, fechaHora) {
+      const cita = citas.find(
+        (c) => c.id === id && c.pacienteId === pacienteId && c.estado === 'CONFIRMADA'
+      );
       if (!cita) {
         return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
       }
-      if (cita.estado === 'CANCELADA') {
-        return { ok: false, error: { status: 409, message: 'La cita ya esta cancelada.' } };
+
+      const [fecha, hora] = fechaHora.split('T') as [string, string];
+      const dia = diaSemanaDeFecha(fecha);
+      const franjasValidas = horarios
+        .filter((h) => h.medicoId === cita.medicoId && h.diaSemana === dia)
+        .flatMap((h) => generarFranjas(h.horaInicio, h.horaFin));
+
+      if (!franjasValidas.includes(hora)) {
+        return {
+          ok: false,
+          error: {
+            status: 400,
+            message: 'El horario seleccionado no está disponible. Elige otro para continuar.',
+          },
+        };
       }
 
-      cita.estado = 'CANCELADA';
-      cita.motivoCancelacion = motivo;
-      registrarNotificacion({
-        usuarioId: cita.pacienteId,
-        email: cita.pacienteEmail,
-        tipo: 'CANCELACION_CITA',
-        citaId: cita.id,
-        detalle: `Cita cancelada. Motivo: ${motivo}`,
-      });
+      const ocupado = citas.some(
+        (c) =>
+          c.id !== id &&
+          c.medicoId === cita.medicoId &&
+          c.fechaHora === fechaHora &&
+          c.estado === 'CONFIRMADA'
+      );
+      if (ocupado) {
+        return {
+          ok: false,
+          error: {
+            status: 409,
+            message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.',
+          },
+        };
+      }
+
+      cita.fechaHora = fechaHora;
       return { ok: true, value: cita };
     },
-    async send24HourReminders(now = new Date()) {
-      const start = now.getTime() + 23.5 * 60 * 60 * 1000;
-      const end = now.getTime() + 24.5 * 60 * 60 * 1000;
+    async cancelar(id, pacienteId, motivo) {
+      const cita = citas.find((c) => c.id === id && c.pacienteId === pacienteId);
+      if (!cita) {
+        return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
+      }
+      cita.estado = 'CANCELADA';
+      cita.motivoCancelacion = motivo;
+
+      const paciente = users.find((u) => u.id === pacienteId);
+      registrarNotificacion({
+        usuarioId: pacienteId,
+        email: paciente?.email ?? '',
+        tipo: 'CANCELACION_CITA',
+        citaId: cita.id,
+        detalle: motivo ? `Cita cancelada. Motivo: ${motivo}` : 'Cita cancelada.',
+      });
+
+      return { ok: true, value: undefined };
+    },
+    async send24HourReminders(ahora = new Date()) {
+      const inicioVentana = ahora.getTime() + 23.5 * 60 * 60 * 1000;
+      const finVentana = ahora.getTime() + 24.5 * 60 * 60 * 1000;
       let processed = 0;
 
       for (const cita of citas) {
-        const startsAt = new Date(`${cita.fecha}T${cita.horaInicio.slice(0, 5)}:00`).getTime();
-        if (cita.estado === 'RESERVADA' && !cita.recordatorioEnviado && startsAt >= start && startsAt <= end) {
-          registrarNotificacion({
-            usuarioId: cita.pacienteId,
-            email: cita.pacienteEmail,
-            tipo: 'RECORDATORIO_24H',
-            citaId: cita.id,
-            detalle: `Recordatorio: cita el ${cita.fecha} a las ${cita.horaInicio}.`,
-          });
-          cita.recordatorioEnviado = true;
-          processed += 1;
-        }
+        if (cita.estado !== 'CONFIRMADA' || cita.recordatorioEnviado) continue;
+        const empiezaEn = new Date(cita.fechaHora).getTime();
+        if (empiezaEn < inicioVentana || empiezaEn > finVentana) continue;
+
+        const paciente = users.find((u) => u.id === cita.pacienteId);
+        registrarNotificacion({
+          usuarioId: cita.pacienteId,
+          email: paciente?.email ?? '',
+          tipo: 'RECORDATORIO_24H',
+          citaId: cita.id,
+          detalle: `Recordatorio: cita el ${cita.fechaHora.replace('T', ' ')}.`,
+        });
+        cita.recordatorioEnviado = true;
+        processed += 1;
       }
 
       return { processed };
@@ -336,6 +461,92 @@ export function createInMemoryServices() {
   const notificacionesService: NotificacionesService = {
     async list() {
       return notificaciones;
+    },
+  };
+
+  const reportesService: ReportesService = {
+    async dashboard(hoy) {
+      const totalCitas = citas.filter((c) => c.estado === 'CONFIRMADA').length;
+      const totalPacientes = users.filter((u) => u.rol === 'PACIENTE').length;
+      const { inicio } = rangoSemanaActual(hoy);
+
+      const ocupacionPorMedico: OcupacionMedico[] = medicos.map((medico) => {
+        const bloques = horarios.filter((h) => h.medicoId === medico.id);
+        let franjasTotales = 0;
+        let franjasOcupadas = 0;
+        for (const bloque of bloques) {
+          const franjas = generarFranjas(bloque.horaInicio, bloque.horaFin);
+          franjasTotales += franjas.length;
+          const fecha = fechaDeDiaEnSemana(inicio, bloque.diaSemana);
+          franjasOcupadas += citas.filter(
+            (c) =>
+              c.medicoId === medico.id &&
+              c.estado === 'CONFIRMADA' &&
+              c.fechaHora.startsWith(fecha) &&
+              franjas.includes(c.fechaHora.split('T')[1]!)
+          ).length;
+        }
+        return {
+          medicoId: medico.id,
+          nombre: medico.nombre,
+          apellido: medico.apellido,
+          franjasTotales,
+          franjasOcupadas,
+          porcentaje:
+            franjasTotales === 0 ? 0 : Math.round((franjasOcupadas / franjasTotales) * 100),
+        };
+      });
+
+      return { totalCitas, totalPacientes, ocupacionPorMedico };
+    },
+
+    async disponibilidad(hoy, medicoId) {
+      const { inicio } = rangoSemanaActual(hoy);
+      const bloques = horarios.filter((h) => !medicoId || h.medicoId === medicoId);
+
+      return bloques.map((bloque) => {
+        const medico = medicos.find((m) => m.id === bloque.medicoId);
+        const franjas = generarFranjas(bloque.horaInicio, bloque.horaFin);
+        const fecha = fechaDeDiaEnSemana(inicio, bloque.diaSemana);
+        const franjasOcupadas = citas.filter(
+          (c) =>
+            c.medicoId === bloque.medicoId &&
+            c.estado === 'CONFIRMADA' &&
+            c.fechaHora.startsWith(fecha) &&
+            franjas.includes(c.fechaHora.split('T')[1]!)
+        ).length;
+
+        return {
+          horarioId: bloque.id,
+          medicoId: bloque.medicoId,
+          medicoNombre: medico?.nombre ?? '',
+          medicoApellido: medico?.apellido ?? '',
+          diaSemana: bloque.diaSemana,
+          horaInicio: bloque.horaInicio,
+          horaFin: bloque.horaFin,
+          franjasTotales: franjas.length,
+          franjasOcupadas,
+          franjasLibres: franjas.length - franjasOcupadas,
+        };
+      });
+    },
+
+    async citas(filters) {
+      return citas
+        .filter((c) => !filters.medicoId || c.medicoId === filters.medicoId)
+        .filter((c) => !filters.desde || c.fechaHora >= filters.desde)
+        .filter((c) => !filters.hasta || c.fechaHora <= `${filters.hasta}T23:59`)
+        .map((c) => {
+          const medico = medicos.find((m) => m.id === c.medicoId);
+          const paciente = users.find((u) => u.id === c.pacienteId);
+          return {
+            ...c,
+            medicoNombre: medico?.nombre ?? '',
+            medicoApellido: medico?.apellido ?? '',
+            pacienteNombre: paciente?.nombre ?? '',
+            pacienteApellido: paciente?.apellido ?? '',
+          };
+        });
     },
   };
 
@@ -352,6 +563,7 @@ export function createInMemoryServices() {
     medicos: medicosService,
     horarios: horariosService,
     citas: citasService,
+    reportes: reportesService,
     notificaciones: notificacionesService,
     testHelpers,
   };

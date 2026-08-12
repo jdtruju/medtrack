@@ -6,7 +6,7 @@ cómo correrlo, y el backlog oficial con su estado.
 
 ## Stack
 
-- **Frontend:** React + TypeScript + Vite + Tailwind CSS + React Router
+- **Frontend:** React + TypeScript + Vite + Tailwind CSS + React Router, Recharts (gráficos), jsPDF (exportar reportes a PDF)
 - **Backend:** Node.js + Express + TypeScript — intermediario real entre el frontend y Supabase (la `service_role key` de Supabase solo vive en el backend, nunca en el navegador)
 - **Base de datos y autenticación:** Supabase (PostgreSQL + Supabase Auth), sin ORM — esquema en `supabase/migrations/*.sql`, aplicado a mano en el SQL Editor del dashboard
 - **Validación:** Zod (backend)
@@ -48,26 +48,22 @@ medtrack/
 6. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
 7. `npm test` — corre las pruebas de todos los workspaces.
 
-## Notas de Épica 1 y 2 (Express + Supabase)
+## Notas de Épica 1, 2, 3, 4 y 5 (Express + Supabase)
 
 - El frontend habla con Express (`/api/...`); Express es el único que tiene la `service_role key` de Supabase. La única excepción es `AvailabilityPage`, que abre una suscripción Realtime de solo lectura directo a Supabase con la key pública (Realtime es una conexión navegador→Supabase por diseño de la plataforma).
 - El correo de recuperación de contraseña es real (Supabase Auth lo envía); Express solo orquesta la llamada.
 - El bloqueo de cuenta tras 5 intentos fallidos vive en las funciones Postgres `check_login_lock`/`record_login_attempt`, llamadas desde Express.
 - Para crear el primer usuario ADMIN, ver `supabase/README.md`.
-- HU-06 ("solo horarios libres") hoy muestra todos los horarios creados — excluir los horarios con una cita activa queda para cuando exista la Épica 3.
-
-## Notas de Epica 4 (Notificaciones)
-
-- Migracion nueva: `supabase/migrations/0006_citas_notificaciones.sql`, con tablas `citas` y `notificaciones`.
-- Endpoints backend:
-  - `POST /api/citas` reserva una cita y registra notificacion `CONFIRMACION_RESERVA`.
-  - `GET /api/citas` lista las citas del paciente autenticado.
-  - `POST /api/citas/:id/cancelar` cancela una cita y registra `CANCELACION_CITA` con motivo.
-  - `POST /api/citas/recordatorios/run` permite a un ADMIN disparar manualmente el procesamiento de recordatorios.
-  - `GET /api/notificaciones` permite a un ADMIN auditar quien, cuando y que tipo de notificacion se envio.
-- Correo documentado: por defecto `EMAIL_PROVIDER=mock` escribe el envio en consola con prefijo `[correo-mock]` y registra la notificacion en BD. Para envio real simple se puede usar Resend con `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` y `RESEND_FROM` en `apps/backend/.env`.
-- Pantalla admin: `/admin/notifications` lista y filtra notificaciones registradas por tipo.
-- Job preparado: `apps/backend/src/jobs/reminderJob.ts` ejecuta `send24HourReminders()` al iniciar el backend y luego cada hora. El servicio solo envia recordatorios de citas reservadas dentro de la ventana de 24 horas y marca `recordatorioEnviado` para evitar duplicados.
+- HU-06 ("solo horarios libres") ya excluye los horarios con una cita `CONFIRMADA` en esa fecha/hora (vía `GET /api/citas/disponibilidad`).
+- HU-07/08/09 (citas): la protección contra doble reserva es un índice único parcial en Postgres (`citas_medico_fecha_activa` en `supabase/migrations/0006_citas.sql`), no una verificación en JavaScript — es lo único que garantiza que dos pacientes no puedan reservar el mismo médico a la misma hora aunque lo intenten al mismo tiempo.
+- `fechaHora` se maneja como el string `"YYYY-MM-DDTHH:mm"` en todo el sistema (sin zona horaria) — simplificación deliberada para este proyecto académico.
+- Las franjas de reserva son de 30 minutos.
+- HU-10/11/12 (notificaciones): `apps/backend/src/services/emailService.ts` expone `createEmailSender()` — por defecto (`EMAIL_PROVIDER=mock`, o sin configurar) registra el envío en consola con el prefijo `[correo-mock]` y guarda una fila en `notificaciones` (migración `0007_notificaciones.sql`); con `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` + `RESEND_FROM` en `apps/backend/.env` se envía un correo real vía Resend. `CitasService.create`/`cancelar` disparan la notificación correspondiente (`CONFIRMACION_RESERVA`/`CANCELACION_CITA`); `apps/backend/src/jobs/reminderJob.ts` corre `send24HourReminders()` al iniciar el backend y luego cada hora, marcando `recordatorioEnviado` en la cita para no duplicar. `GET /api/notificaciones` (admin) audita los envíos; `POST /api/citas/recordatorios/run` (admin) los dispara a mano.
+- Los reportes (Épica 5) no agregan tablas nuevas: son vistas calculadas al momento sobre
+  `citas`/`horarios`/`medicos`/`perfiles`. La "ocupación por médico" se calcula sobre la
+  semana actual (lunes a domingo).
+- La exportación a PDF (HU-13/HU-14) es 100% del lado del cliente (`jsPDF` +
+  `jspdf-autotable`), sin tocar el backend — no requiere la `service_role key`.
 
 ## Backlog (fuente: ProductBacklog_MedTrack.pdf, Julio 2026)
 
@@ -85,9 +81,9 @@ medtrack/
 
 ### Épica 3 – Gestión de Citas Médicas
 
-- [ ] HU-07 Crear Cita Médica — pendiente
-- [ ] HU-08 Reprogramar Cita — pendiente
-- [ ] HU-09 Cancelar Cita — pendiente
+- [x] HU-07 Crear Cita Médica — completada en Sprint 2
+- [x] HU-08 Reprogramar Cita — completada en Sprint 2
+- [x] HU-09 Cancelar Cita — completada en Sprint 2
 
 ### Épica 4 – Notificaciones
 
@@ -97,9 +93,9 @@ medtrack/
 
 ### Épica 5 – Reportes
 
-- [ ] HU-13 Reporte de Disponibilidad — pendiente
-- [ ] HU-14 Reporte de Citas — pendiente
-- [ ] HU-15 Dashboard Administrativo — pendiente
+- [x] HU-13 Reporte de Disponibilidad — completada en Sprint 4
+- [x] HU-14 Reporte de Citas — completada en Sprint 4
+- [x] HU-15 Dashboard Administrativo — completada en Sprint 4
 
 ### Épica 6 – Calidad del Software (QA)
 

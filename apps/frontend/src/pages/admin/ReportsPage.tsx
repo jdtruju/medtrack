@@ -1,216 +1,257 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { AppShell, StatGrid, WorkPanel } from '../../components/AppShell';
-import { apiRequest, Cita, diasSemana, getSession, Notificacion } from '../../lib/api';
+import { useEffect, useState } from 'react';
+import { AppShell, WorkPanel } from '../../components/AppShell';
+import { apiRequest, getSession } from '../../lib/api';
+import { exportarTablaPdf } from '../../lib/exportPdf';
 import { adminNavItems } from '../../lib/nav';
 
-interface ResumenAdmin {
-  especialidades: number;
-  medicos: number;
-  horarios: number;
-  citasReservadas: number;
-  citasCanceladas: number;
-  notificaciones: number;
-  notificacionesPorTipo: Record<string, number>;
-  citasPorEstado: Record<string, number>;
-}
-
-interface MedicosPorEspecialidad {
-  especialidadId: string;
+interface MedicoOption {
+  id: string;
   nombre: string;
-  medicos: number;
+  apellido: string;
 }
 
-interface HorariosPorDia {
+interface DisponibilidadItem {
+  horarioId: string;
+  medicoId: string;
+  medicoNombre: string;
+  medicoApellido: string;
   diaSemana: string;
-  horarios: number;
+  horaInicio: string;
+  horaFin: string;
+  franjasTotales: number;
+  franjasOcupadas: number;
+  franjasLibres: number;
 }
 
-interface ReportesResponse {
-  resumen: ResumenAdmin;
-  actividad: Notificacion[];
-  medicosPorEspecialidad: MedicosPorEspecialidad[];
-  horariosPorDia: HorariosPorDia[];
-  proximasCitas: Cita[];
+interface CitaReporteItem {
+  id: string;
+  medicoNombre: string;
+  medicoApellido: string;
+  pacienteNombre: string;
+  pacienteApellido: string;
+  fechaHora: string;
+  estado: 'CONFIRMADA' | 'CANCELADA';
+}
+
+function medicoLabel(nombre: string, apellido: string) {
+  return `Dr ${nombre} ${apellido}`;
 }
 
 export function ReportsPage() {
-  const [data, setData] = useState<ReportesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [medicos, setMedicos] = useState<MedicoOption[]>([]);
+
+  const [medicoDisponibilidad, setMedicoDisponibilidad] = useState('');
+  const [disponibilidad, setDisponibilidad] = useState<DisponibilidadItem[]>([]);
+
+  const [medicoCitas, setMedicoCitas] = useState('');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [citas, setCitas] = useState<CitaReporteItem[]>([]);
 
   useEffect(() => {
     const { token } = getSession();
-    apiRequest<ReportesResponse>('/api/reportes/resumen', { token })
-      .then((response) => {
-        setData(response);
-        setError('');
-      })
-      .catch((err) => {
-        setData(null);
-        setError((err as Error).message);
-      })
-      .finally(() => setLoading(false));
+    apiRequest<{ medicos: MedicoOption[] }>('/api/medicos', { token })
+      .then((response) => setMedicos(response.medicos))
+      .catch(() => setMedicos([]));
   }, []);
 
-  const maxMedicosPorEspecialidad = useMemo(
-    () => Math.max(1, ...(data?.medicosPorEspecialidad.map((item) => item.medicos) ?? [0])),
-    [data],
-  );
-  const maxHorariosPorDia = useMemo(() => Math.max(1, ...(data?.horariosPorDia.map((item) => item.horarios) ?? [0])), [data]);
+  useEffect(() => {
+    const { token } = getSession();
+    const query = medicoDisponibilidad ? `?medicoId=${medicoDisponibilidad}` : '';
+    apiRequest<{ items: DisponibilidadItem[] }>(`/api/reportes/disponibilidad${query}`, { token })
+      .then((response) => setDisponibilidad(response.items))
+      .catch(() => setDisponibilidad([]));
+  }, [medicoDisponibilidad]);
 
-  const resumen = data?.resumen;
+  useEffect(() => {
+    const { token } = getSession();
+    const params = new URLSearchParams();
+    if (medicoCitas) params.set('medicoId', medicoCitas);
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    apiRequest<{ items: CitaReporteItem[] }>(`/api/reportes/citas${query}`, { token })
+      .then((response) => setCitas(response.items))
+      .catch(() => setCitas([]));
+  }, [medicoCitas, desde, hasta]);
+
+  function exportarDisponibilidad() {
+    exportarTablaPdf(
+      'Reporte de disponibilidad',
+      ['Medico', 'Dia', 'Hora inicio', 'Hora fin', 'Franjas totales', 'Ocupadas', 'Libres'],
+      disponibilidad.map((item) => [
+        medicoLabel(item.medicoNombre, item.medicoApellido),
+        item.diaSemana,
+        item.horaInicio,
+        item.horaFin,
+        String(item.franjasTotales),
+        String(item.franjasOcupadas),
+        String(item.franjasLibres),
+      ])
+    );
+  }
+
+  function exportarCitas() {
+    exportarTablaPdf(
+      'Reporte de citas',
+      ['Paciente', 'Medico', 'Fecha y hora', 'Estado'],
+      citas.map((cita) => [
+        `${cita.pacienteNombre} ${cita.pacienteApellido}`,
+        medicoLabel(cita.medicoNombre, cita.medicoApellido),
+        cita.fechaHora,
+        cita.estado,
+      ])
+    );
+  }
 
   return (
-    <AppShell title="Reportes" subtitle="Indicadores reales para seguimiento de agenda, capacidad y notificaciones." navItems={adminNavItems}>
-      {error ? <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div> : null}
+    <AppShell
+      title="Reportes"
+      subtitle="Disponibilidad y citas para seguimiento operativo."
+      navItems={adminNavItems}
+    >
+      <WorkPanel title="Disponibilidad por medico">
+        <div className="flex flex-wrap items-end gap-4">
+          <label
+            className="block text-sm font-semibold text-slate-700"
+            htmlFor="medicoDisponibilidad"
+          >
+            Medico
+            <select
+              id="medicoDisponibilidad"
+              value={medicoDisponibilidad}
+              onChange={(event) => setMedicoDisponibilidad(event.target.value)}
+              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+            >
+              <option value="">Todos los medicos</option>
+              {medicos.map((medico) => (
+                <option key={medico.id} value={medico.id}>
+                  {medico.nombre} {medico.apellido}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+            onClick={exportarDisponibilidad}
+          >
+            Exportar PDF disponibilidad
+          </button>
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 text-slate-600">
+              <tr>
+                <th className="py-2 pr-4">Medico</th>
+                <th className="py-2 pr-4">Dia</th>
+                <th className="py-2 pr-4">Hora inicio</th>
+                <th className="py-2 pr-4">Hora fin</th>
+                <th className="py-2 pr-4">Franjas totales</th>
+                <th className="py-2 pr-4">Ocupadas</th>
+                <th className="py-2 pr-4">Libres</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {disponibilidad.map((item) => (
+                <tr key={item.horarioId}>
+                  <td className="py-3 pr-4">
+                    {medicoLabel(item.medicoNombre, item.medicoApellido)}
+                  </td>
+                  <td className="py-3 pr-4">{item.diaSemana}</td>
+                  <td className="py-3 pr-4">{item.horaInicio}</td>
+                  <td className="py-3 pr-4">{item.horaFin}</td>
+                  <td className="py-3 pr-4">{item.franjasTotales}</td>
+                  <td className="py-3 pr-4">{item.franjasOcupadas}</td>
+                  <td className="py-3 pr-4">{item.franjasLibres}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {disponibilidad.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-600">Sin horarios para este filtro.</p>
+          ) : null}
+        </div>
+      </WorkPanel>
 
-      <StatGrid
-        stats={[
-          {
-            label: 'Citas activas',
-            value: loading ? '...' : String(resumen?.citasReservadas ?? 0),
-            detail: 'Reservas vigentes',
-            tone: 'teal',
-          },
-          {
-            label: 'Cancelaciones',
-            value: loading ? '...' : String(resumen?.citasCanceladas ?? 0),
-            detail: 'Con motivo registrado',
-            tone: 'rose',
-          },
-          {
-            label: 'Capacidad',
-            value: loading ? '...' : `${resumen?.medicos ?? 0}/${resumen?.horarios ?? 0}`,
-            detail: 'Medicos y horarios',
-            tone: 'blue',
-          },
-          {
-            label: 'Notificaciones',
-            value: loading ? '...' : String(resumen?.notificaciones ?? 0),
-            detail: 'Auditoria de correos mock',
-            tone: 'amber',
-          },
-        ]}
-      />
-
-      <section className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <WorkPanel title="Reporte operativo">
-          <div className="overflow-x-auto">
+      <div className="mt-6">
+        <WorkPanel title="Citas">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="medicoCitas">
+              Medico
+              <select
+                id="medicoCitas"
+                value={medicoCitas}
+                onChange={(event) => setMedicoCitas(event.target.value)}
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+              >
+                <option value="">Todos los medicos</option>
+                {medicos.map((medico) => (
+                  <option key={medico.id} value={medico.id}>
+                    {medico.nombre} {medico.apellido}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="desde">
+              Desde
+              <input
+                id="desde"
+                type="date"
+                value={desde}
+                onChange={(event) => setDesde(event.target.value)}
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+              />
+            </label>
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="hasta">
+              Hasta
+              <input
+                id="hasta"
+                type="date"
+                value={hasta}
+                onChange={(event) => setHasta(event.target.value)}
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+              />
+            </label>
+            <button
+              type="button"
+              className="rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+              onClick={exportarCitas}
+            >
+              Exportar PDF citas
+            </button>
+          </div>
+          <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 text-slate-600">
                 <tr>
-                  <th className="py-2 pr-4">Indicador</th>
-                  <th className="py-2 pr-4">Valor</th>
-                  <th className="py-2 pr-4">Proposito</th>
+                  <th className="py-2 pr-4">Paciente</th>
+                  <th className="py-2 pr-4">Medico</th>
+                  <th className="py-2 pr-4">Fecha y hora</th>
+                  <th className="py-2 pr-4">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                <ReportRow label="Confirmaciones" value={resumen?.notificacionesPorTipo.CONFIRMACION_RESERVA ?? 0} detail="Reservas con correo mock registrado" />
-                <ReportRow label="Recordatorios 24h" value={resumen?.notificacionesPorTipo.RECORDATORIO_24H ?? 0} detail="Citas proximas procesadas por job" />
-                <ReportRow label="Cancelaciones notificadas" value={resumen?.notificacionesPorTipo.CANCELACION_CITA ?? 0} detail="Cancelaciones con motivo auditable" />
-                <ReportRow label="Especialidades" value={resumen?.especialidades ?? 0} detail="Catalogo disponible para asignar medicos" />
+                {citas.map((cita) => (
+                  <tr key={cita.id}>
+                    <td className="py-3 pr-4">
+                      {cita.pacienteNombre} {cita.pacienteApellido}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {medicoLabel(cita.medicoNombre, cita.medicoApellido)}
+                    </td>
+                    <td className="py-3 pr-4">{cita.fechaHora}</td>
+                    <td className="py-3 pr-4">{cita.estado}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
+            {citas.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-600">Sin citas para este filtro.</p>
+            ) : null}
           </div>
         </WorkPanel>
-
-        <WorkPanel title="Proximas citas">
-          {loading ? (
-            <p className="text-sm text-slate-600">Cargando citas...</p>
-          ) : data?.proximasCitas.length ? (
-            <div className="space-y-3">
-              {data.proximasCitas.map((cita) => (
-                <article key={cita.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-950">{cita.pacienteEmail}</p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {cita.fecha} · {cita.horaInicio}
-                  </p>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              No hay citas activas.{' '}
-              <Link className="font-semibold underline" to="/admin/schedules">
-                Revisar disponibilidad
-              </Link>
-            </div>
-          )}
-        </WorkPanel>
-      </section>
-
-      <section className="mt-6 grid gap-4 lg:grid-cols-3">
-        <WorkPanel title="Medicos por especialidad">
-          {loading ? (
-            <p className="text-sm text-slate-600">Cargando especialidades...</p>
-          ) : data?.medicosPorEspecialidad.length ? (
-            <div className="space-y-3">
-              {data.medicosPorEspecialidad.map((item) => (
-                <MetricBar key={item.especialidadId} label={item.nombre} value={item.medicos} max={maxMedicosPorEspecialidad} />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-slate-600">No hay especialidades registradas.</p>
-          )}
-        </WorkPanel>
-
-        <WorkPanel title="Horarios por dia">
-          {loading ? (
-            <p className="text-sm text-slate-600">Cargando horarios...</p>
-          ) : (
-            <div className="space-y-3">
-              {data?.horariosPorDia.map((item) => (
-                <MetricBar key={item.diaSemana} label={diasSemana[item.diaSemana] ?? item.diaSemana} value={item.horarios} max={maxHorariosPorDia} />
-              ))}
-            </div>
-          )}
-        </WorkPanel>
-
-        <WorkPanel title="Ultimos envios">
-          {loading ? (
-            <p className="text-sm text-slate-600">Cargando notificaciones...</p>
-          ) : data?.actividad.length ? (
-            <div className="space-y-3">
-              {data.actividad.map((item) => (
-                <article key={item.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-950">{item.tipo.replaceAll('_', ' ')}</p>
-                  <p className="mt-1 break-words text-sm text-slate-600">{item.email}</p>
-                  <p className="mt-1 text-xs text-slate-500">{new Date(item.enviadoEn).toLocaleString()}</p>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-slate-600">Sin notificaciones registradas.</p>
-          )}
-        </WorkPanel>
-      </section>
+      </div>
     </AppShell>
-  );
-}
-
-function ReportRow({ label, value, detail }: { label: string; value: number; detail: string }) {
-  return (
-    <tr>
-      <td className="py-3 pr-4 font-medium text-slate-950">{label}</td>
-      <td className="py-3 pr-4">{value}</td>
-      <td className="py-3 pr-4 text-slate-600">{detail}</td>
-    </tr>
-  );
-}
-
-function MetricBar({ label, value, max }: { label: string; value: number; max: number }) {
-  const width = `${Math.max(4, Math.round((value / max) * 100))}%`;
-
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-        <span className="truncate font-medium text-slate-700">{label}</span>
-        <span className="font-semibold text-slate-950">{value}</span>
-      </div>
-      <div className="h-2 rounded-full bg-slate-100">
-        <div className="h-2 rounded-full bg-teal-700" style={{ width }} />
-      </div>
-    </div>
   );
 }

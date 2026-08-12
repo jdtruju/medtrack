@@ -3,19 +3,35 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../middlewares/auth';
 import type { AppServices } from '../services/appServices';
 
+const fechaHoraSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'La fecha y hora no son válidas.');
+
 const crearCitaSchema = z.object({
-  medicoId: z.string().trim().min(1, 'El medico es obligatorio.'),
-  horarioId: z.string().trim().min(1, 'El horario es obligatorio.'),
-  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha no es valida.'),
-  horaInicio: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'La hora de inicio no es valida.'),
+  medicoId: z.string().trim().min(1, 'El médico es obligatorio.'),
+  fechaHora: fechaHoraSchema,
+});
+
+const reprogramarSchema = z.object({
+  fechaHora: fechaHoraSchema,
 });
 
 const cancelarCitaSchema = z.object({
-  motivo: z.string().trim().min(5, 'El motivo de cancelacion debe tener al menos 5 caracteres.'),
+  motivo: z.string().trim().max(500).optional(),
 });
 
 export function createCitasRouter(services: AppServices) {
   const router = Router();
+
+  router.get('/disponibilidad', requireAuth(services), async (req, res) => {
+    const medicoId = typeof req.query.medicoId === 'string' ? req.query.medicoId : '';
+    const fecha = typeof req.query.fecha === 'string' ? req.query.fecha : '';
+    if (!medicoId || !fecha) {
+      res.status(400).json({ error: 'Médico y fecha son obligatorios.' });
+      return;
+    }
+
+    const franjas = await services.citas.listSlotsDisponibles(medicoId, fecha);
+    res.status(200).json({ franjas });
+  });
 
   router.get('/', requireAuth(services), async (req, res) => {
     const citas = await services.citas.listByPaciente(req.user!.id);
@@ -30,36 +46,48 @@ export function createCitasRouter(services: AppServices) {
     }
 
     const result = await services.citas.create({
-      ...parsed.data,
       pacienteId: req.user!.id,
-      pacienteEmail: req.user!.email,
+      medicoId: parsed.data.medicoId,
+      fechaHora: parsed.data.fechaHora,
     });
     if (!result.ok) {
       res.status(result.error.status).json({ error: result.error.message });
       return;
     }
 
-    res.status(201).json({ message: 'Cita reservada correctamente.', cita: result.value });
+    res.status(201).json({ message: 'Tu cita ha sido agendada exitosamente.', cita: result.value });
   });
 
-  router.post('/:id/cancelar', requireAuth(services), async (req, res) => {
+  router.put('/:id/reprogramar', requireAuth(services), async (req, res) => {
+    const parsed = reprogramarSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
+      return;
+    }
+
+    const result = await services.citas.reprogramar(req.params.id!, req.user!.id, parsed.data.fechaHora);
+    if (!result.ok) {
+      res.status(result.error.status).json({ error: result.error.message });
+      return;
+    }
+
+    res.status(200).json({ message: 'Tu cita ha sido reprogramada exitosamente.', cita: result.value });
+  });
+
+  router.put('/:id/cancelar', requireAuth(services), async (req, res) => {
     const parsed = cancelarCitaSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0]!.message });
       return;
     }
 
-    const result = await services.citas.cancel({
-      citaId: req.params.id!,
-      pacienteId: req.user!.id,
-      motivo: parsed.data.motivo,
-    });
+    const result = await services.citas.cancelar(req.params.id!, req.user!.id, parsed.data.motivo);
     if (!result.ok) {
       res.status(result.error.status).json({ error: result.error.message });
       return;
     }
 
-    res.status(200).json({ message: 'Cita cancelada correctamente.', cita: result.value });
+    res.status(200).json({ message: 'Tu cita ha sido cancelada.' });
   });
 
   router.post('/recordatorios/run', requireAuth(services), requireRole(services, 'ADMIN'), async (_req, res) => {

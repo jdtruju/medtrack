@@ -83,42 +83,77 @@ export interface HorariosService {
   remove(id: string): Promise<Result<void>>;
 }
 
-export type EstadoCita = 'RESERVADA' | 'CANCELADA';
-
 export interface Cita {
   id: string;
   pacienteId: string;
-  pacienteEmail: string;
   medicoId: string;
-  horarioId: string;
-  fecha: string;
-  horaInicio: string;
-  estado: EstadoCita;
+  especialidadId: string;
+  fechaHora: string;
+  estado: 'CONFIRMADA' | 'CANCELADA';
   motivoCancelacion?: string;
   recordatorioEnviado: boolean;
 }
 
-export interface CrearCitaInput {
+export interface CreateCitaInput {
   pacienteId: string;
-  pacienteEmail: string;
   medicoId: string;
-  horarioId: string;
-  fecha: string;
-  horaInicio: string;
-}
-
-export interface CancelarCitaInput {
-  citaId: string;
-  pacienteId: string;
-  motivo: string;
+  fechaHora: string;
 }
 
 export interface CitasService {
-  listAll(): Promise<Cita[]>;
+  listSlotsDisponibles(medicoId: string, fecha: string): Promise<string[]>;
+  create(input: CreateCitaInput): Promise<Result<Cita>>;
   listByPaciente(pacienteId: string): Promise<Cita[]>;
-  create(input: CrearCitaInput): Promise<Result<Cita>>;
-  cancel(input: CancelarCitaInput): Promise<Result<Cita>>;
-  send24HourReminders(now?: Date): Promise<{ processed: number }>;
+  reprogramar(id: string, pacienteId: string, fechaHora: string): Promise<Result<Cita>>;
+  cancelar(id: string, pacienteId: string, motivo?: string): Promise<Result<void>>;
+  send24HourReminders(ahora?: Date): Promise<{ processed: number }>;
+}
+
+export interface OcupacionMedico {
+  medicoId: string;
+  nombre: string;
+  apellido: string;
+  franjasTotales: number;
+  franjasOcupadas: number;
+  porcentaje: number;
+}
+
+export interface DashboardStats {
+  totalCitas: number;
+  totalPacientes: number;
+  ocupacionPorMedico: OcupacionMedico[];
+}
+
+export interface DisponibilidadReporteItem {
+  horarioId: string;
+  medicoId: string;
+  medicoNombre: string;
+  medicoApellido: string;
+  diaSemana: string;
+  horaInicio: string;
+  horaFin: string;
+  franjasTotales: number;
+  franjasOcupadas: number;
+  franjasLibres: number;
+}
+
+export interface CitaReporteItem extends Cita {
+  medicoNombre: string;
+  medicoApellido: string;
+  pacienteNombre: string;
+  pacienteApellido: string;
+}
+
+export interface CitasReporteFilters {
+  medicoId?: string;
+  desde?: string;
+  hasta?: string;
+}
+
+export interface ReportesService {
+  dashboard(hoy: string): Promise<DashboardStats>;
+  disponibilidad(hoy: string, medicoId?: string): Promise<DisponibilidadReporteItem[]>;
+  citas(filters: CitasReporteFilters): Promise<CitaReporteItem[]>;
 }
 
 export type TipoNotificacion = 'CONFIRMACION_RESERVA' | 'RECORDATORIO_24H' | 'CANCELACION_CITA';
@@ -143,5 +178,6 @@ export interface AppServices {
   medicos: MedicosService;
   horarios: HorariosService;
   citas: CitasService;
+  reportes: ReportesService;
   notificaciones: NotificacionesService;
 }

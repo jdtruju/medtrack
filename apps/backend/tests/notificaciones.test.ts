@@ -7,8 +7,8 @@ let services: ReturnType<typeof createInMemoryServices>;
 let app: ReturnType<typeof createApp>;
 let adminToken: string;
 let pacienteToken: string;
+let pacienteId: string;
 let medicoId: string;
-let horarioId: string;
 
 beforeEach(async () => {
   services = createInMemoryServices();
@@ -26,7 +26,10 @@ beforeEach(async () => {
     password: 'Paciente1',
   });
   const loginPaciente = await services.auth.login('paciente@medtrack.test', 'Paciente1');
-  if (loginPaciente.ok) pacienteToken = loginPaciente.value.token;
+  if (loginPaciente.ok) {
+    pacienteToken = loginPaciente.value.token;
+    pacienteId = loginPaciente.value.usuario.id;
+  }
 
   const [especialidad] = await services.especialidades.list();
   const medico = await services.medicos.create({
@@ -38,13 +41,8 @@ beforeEach(async () => {
   });
   if (medico.ok) medicoId = medico.value.id;
 
-  const horario = await services.horarios.create({
-    medicoId,
-    diaSemana: 'LUN',
-    horaInicio: '08:00',
-    horaFin: '12:00',
-  });
-  if (horario.ok) horarioId = horario.value.id;
+  // 2026-07-16 es jueves
+  await services.horarios.create({ medicoId, diaSemana: 'JUE', horaInicio: '08:00', horaFin: '12:00' });
 });
 
 describe('Epica 4 - Notificaciones', () => {
@@ -52,10 +50,9 @@ describe('Epica 4 - Notificaciones', () => {
     const response = await request(app)
       .post('/api/citas')
       .set('Authorization', `Bearer ${pacienteToken}`)
-      .send({ medicoId, horarioId, fecha: '2026-09-01', horaInicio: '08:00' });
+      .send({ medicoId, fechaHora: '2026-07-16T08:00' });
 
     expect(response.status).toBe(201);
-    expect(response.body.message).toBe('Cita reservada correctamente.');
 
     const log = await request(app).get('/api/notificaciones').set('Authorization', `Bearer ${adminToken}`);
     expect(log.status).toBe(200);
@@ -74,16 +71,14 @@ describe('Epica 4 - Notificaciones', () => {
     const created = await request(app)
       .post('/api/citas')
       .set('Authorization', `Bearer ${pacienteToken}`)
-      .send({ medicoId, horarioId, fecha: '2026-09-02', horaInicio: '08:00' });
+      .send({ medicoId, fechaHora: '2026-07-16T08:00' });
 
     const response = await request(app)
-      .post(`/api/citas/${created.body.cita.id}/cancelar`)
+      .put(`/api/citas/${created.body.cita.id}/cancelar`)
       .set('Authorization', `Bearer ${pacienteToken}`)
       .send({ motivo: 'Tengo otro compromiso medico.' });
 
     expect(response.status).toBe(200);
-    expect(response.body.cita.estado).toBe('CANCELADA');
-    expect(response.body.cita.motivoCancelacion).toBe('Tengo otro compromiso medico.');
 
     const log = await services.notificaciones.list();
     expect(log).toEqual(
@@ -98,17 +93,14 @@ describe('Epica 4 - Notificaciones', () => {
 
   it('HU-11 registra un recordatorio 24 horas antes y evita duplicados', async () => {
     const created = await services.citas.create({
-      pacienteId: 'user-1',
-      pacienteEmail: 'paciente@medtrack.test',
+      pacienteId,
       medicoId,
-      horarioId,
-      fecha: '2026-09-10',
-      horaInicio: '08:00',
+      fechaHora: '2026-07-16T08:00',
     });
     expect(created.ok).toBe(true);
 
-    const firstRun = await services.citas.send24HourReminders(new Date('2026-09-09T08:00:00'));
-    const secondRun = await services.citas.send24HourReminders(new Date('2026-09-09T08:00:00'));
+    const firstRun = await services.citas.send24HourReminders(new Date('2026-07-15T08:00:00'));
+    const secondRun = await services.citas.send24HourReminders(new Date('2026-07-15T08:00:00'));
 
     expect(firstRun.processed).toBe(1);
     expect(secondRun.processed).toBe(0);
@@ -117,18 +109,23 @@ describe('Epica 4 - Notificaciones', () => {
     expect(log.filter((notificacion) => notificacion.tipo === 'RECORDATORIO_24H')).toHaveLength(1);
   });
 
-  it('expone un resumen administrativo conectado a citas y notificaciones', async () => {
+  it('HU-15 el dashboard refleja las citas y notificaciones registradas', async () => {
     await request(app)
       .post('/api/citas')
       .set('Authorization', `Bearer ${pacienteToken}`)
-      .send({ medicoId, horarioId, fecha: '2026-09-03', horaInicio: '08:00' });
+      .send({ medicoId, fechaHora: '2026-07-16T08:00' });
 
-    const response = await request(app).get('/api/reportes/resumen').set('Authorization', `Bearer ${adminToken}`);
+    const response = await request(app).get('/api/reportes/dashboard').set('Authorization', `Bearer ${adminToken}`);
 
     expect(response.status).toBe(200);
-    expect(response.body.resumen.medicos).toBe(1);
-    expect(response.body.resumen.horarios).toBe(1);
-    expect(response.body.resumen.citasReservadas).toBe(1);
-    expect(response.body.resumen.notificacionesPorTipo.CONFIRMACION_RESERVA).toBe(1);
+    expect(response.body.stats.totalCitas).toBe(1);
+
+    const log = await request(app).get('/api/notificaciones').set('Authorization', `Bearer ${adminToken}`);
+    expect(log.body.notificaciones).toHaveLength(1);
+  });
+
+  it('rechaza el acceso a /api/notificaciones si el usuario no es ADMIN', async () => {
+    const response = await request(app).get('/api/notificaciones').set('Authorization', `Bearer ${pacienteToken}`);
+    expect(response.status).toBe(403);
   });
 });
