@@ -1,13 +1,9 @@
 import { AppShell, EmptyState, WorkPanel } from '../../components/AppShell';
-
-const patientNav = [
-  { label: 'Panel', to: '/patient/dashboard' },
-  { label: 'Mis citas', to: '/patient/appointments' },
-];
+import { patientNavItems } from '../../lib/nav';
 
 export function AppointmentsPage() {
   return (
-    <AppShell title="Mis citas" subtitle="Consulta de solicitudes y proximas citas medicas." navItems={patientNav}>
+    <AppShell title="Mis citas" subtitle="Consulta de solicitudes y proximas citas medicas." navItems={patientNavItems}>
       <EmptyState
         title="Todavia no hay citas registradas"
         detail="La creacion de citas corresponde a la siguiente epica. Por ahora esta vista queda lista para integrarse."
