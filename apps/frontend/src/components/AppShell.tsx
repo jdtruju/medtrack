@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { getSession } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
 interface NavItem {
   label: string;
@@ -16,11 +16,10 @@ interface AppShellProps {
 export function AppShell({ title, subtitle, navItems, children }: PropsWithChildren<AppShellProps>) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = getSession();
+  const { user, logout } = useAuth();
 
-  function handleLogout() {
-    localStorage.removeItem('medtrack.token');
-    localStorage.removeItem('medtrack.user');
+  async function handleLogout() {
+    await logout();
     navigate('/login');
   }
 

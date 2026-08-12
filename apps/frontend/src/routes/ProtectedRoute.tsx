@@ -1,16 +1,20 @@
 import type { PropsWithChildren } from 'react';
 import { Navigate } from 'react-router-dom';
 import type { RolUsuario } from '@medtrack/shared';
-import { getSession } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
   allowedRoles?: RolUsuario[];
 }
 
 export function ProtectedRoute({ children, allowedRoles }: PropsWithChildren<ProtectedRouteProps>) {
-  const { token, user } = getSession();
+  const { user, loading } = useAuth();
 
-  if (!token || !user) {
+  if (loading) {
+    return null;
+  }
+
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
