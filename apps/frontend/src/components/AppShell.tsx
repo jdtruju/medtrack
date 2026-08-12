@@ -24,17 +24,17 @@ export function AppShell({ title, subtitle, navItems, children }: PropsWithChild
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+    <main className="min-h-screen bg-slate-100 text-slate-950">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <Link to={user?.rol === 'ADMIN' ? '/admin/dashboard' : '/patient/dashboard'} className="text-sm font-semibold text-teal-700">
+            <Link to={user?.rol === 'ADMIN' ? '/admin/dashboard' : '/patient/dashboard'} className="text-sm font-bold text-teal-700">
               MedTrack
             </Link>
-            <h1 className="mt-2 text-3xl font-semibold">{title}</h1>
+            <h1 className="mt-2 text-3xl font-bold tracking-normal">{title}</h1>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{subtitle}</p>
           </div>
-          <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{user ? `${user.nombre} ${user.apellido}` : 'Sesion activa'}</p>
               <p className="text-xs text-slate-500">{user?.rol ?? 'USUARIO'}</p>
@@ -70,11 +70,18 @@ export function AppShell({ title, subtitle, navItems, children }: PropsWithChild
   );
 }
 
-export function StatGrid({ stats }: { stats: Array<{ label: string; value: string; detail: string }> }) {
+export function StatGrid({ stats }: { stats: Array<{ label: string; value: string; detail: string; tone?: 'teal' | 'blue' | 'amber' | 'rose' }> }) {
+  const tones = {
+    teal: 'border-l-teal-600',
+    blue: 'border-l-sky-600',
+    amber: 'border-l-amber-500',
+    rose: 'border-l-rose-500',
+  };
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {stats.map((stat) => (
-        <article key={stat.label} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <article key={stat.label} className={`rounded-lg border border-l-4 border-slate-200 bg-white p-5 shadow-sm ${tones[stat.tone ?? 'teal']}`}>
           <p className="text-sm text-slate-600">{stat.label}</p>
           <p className="mt-2 text-3xl font-semibold text-slate-950">{stat.value}</p>
           <p className="mt-1 text-sm text-slate-500">{stat.detail}</p>

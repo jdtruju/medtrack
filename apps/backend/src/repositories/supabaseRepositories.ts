@@ -12,14 +12,56 @@ import type {
   DisponibilidadReporteItem,
   Especialidad,
   EspecialidadesService,
-  Horario,
   HorariosService,
   Medico,
   MedicosService,
+  Notificacion,
+  NotificacionesService,
   ReportesService,
+  TipoNotificacion,
 } from '../services/appServices';
+import { createEmailSender } from '../services/emailService';
 
 export function createSupabaseServices(client: SupabaseClient, frontendUrl: string): AppServices {
+  const normalizeTime = (value: unknown) => String(value).slice(0, 5);
+  const emailSender = createEmailSender();
+
+  const subjectByTipo = (tipo: TipoNotificacion) => {
+    if (tipo === 'CONFIRMACION_RESERVA') return 'Confirmacion de cita MedTrack';
+    if (tipo === 'RECORDATORIO_24H') return 'Recordatorio de cita MedTrack';
+    return 'Cancelacion de cita MedTrack';
+  };
+
+  const emailDePaciente = async (pacienteId: string): Promise<string> => {
+    const { data } = await client.from('perfiles').select('email').eq('id', pacienteId).single();
+    return (data?.email as string | undefined) ?? '';
+  };
+
+  const registrarNotificacion = async (input: {
+    usuarioId: string;
+    email: string;
+    tipo: TipoNotificacion;
+    citaId: string;
+    detalle?: string;
+  }) => {
+    const subject = subjectByTipo(input.tipo);
+    const text = input.detalle ?? `Notificacion ${input.tipo}`;
+    let delivery: { provider: string; id?: string; error?: string };
+    try {
+      delivery = await emailSender.send({ to: input.email, subject, text });
+    } catch (error) {
+      delivery = { provider: 'error', error: (error as Error).message };
+      console.error('No se pudo enviar la notificacion por correo.', error);
+    }
+    await client.from('notificaciones').insert({
+      usuario_id: input.usuarioId,
+      email: input.email,
+      tipo: input.tipo,
+      cita_id: input.citaId,
+      detalle: `${text} Canal: ${delivery.provider}${delivery.id ? ` (${delivery.id})` : ''}${delivery.error ? ` - ${delivery.error}` : ''}.`,
+    });
+  };
+
   const auth: AuthService = {
     async register({ nombre, apellido, email, telefono, password }) {
       const { error } = await client.auth.admin.createUser({
@@ -147,8 +189,59 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
 
   const especialidades: EspecialidadesService = {
     async list() {
-      const { data } = await client.from('especialidades').select('id, nombre').order('nombre');
+      const { data } = await client.from('especialidades').select('id, nombre, descripcion').order('nombre');
       return (data as Especialidad[]) ?? [];
+    },
+    async create(input) {
+      const { data, error } = await client
+        .from('especialidades')
+        .insert({ nombre: input.nombre, descripcion: input.descripcion })
+        .select('id, nombre, descripcion')
+        .single();
+      if (error || !data) {
+        return {
+          ok: false,
+          error: {
+            status: error?.code === '23505' ? 409 : 400,
+            message: error?.code === '23505' ? 'Ya existe una especialidad con este nombre.' : (error?.message ?? 'No se pudo crear la especialidad.'),
+          },
+        };
+      }
+      return { ok: true, value: data as Especialidad };
+    },
+    async update(id, input) {
+      const { data, error } = await client
+        .from('especialidades')
+        .update({ nombre: input.nombre, descripcion: input.descripcion })
+        .eq('id', id)
+        .select('id, nombre, descripcion')
+        .single();
+      if (error || !data) {
+        return {
+          ok: false,
+          error: {
+            status: error?.code === '23505' ? 409 : 404,
+            message: error?.code === '23505' ? 'Ya existe una especialidad con este nombre.' : 'Especialidad no encontrada.',
+          },
+        };
+      }
+      return { ok: true, value: data as Especialidad };
+    },
+    async remove(id) {
+      const { error } = await client.from('especialidades').delete().eq('id', id);
+      if (error) {
+        return {
+          ok: false,
+          error: {
+            status: error.code === '23503' ? 409 : 404,
+            message:
+              error.code === '23503'
+                ? 'No se puede eliminar una especialidad con medicos asociados.'
+                : 'Especialidad no encontrada.',
+          },
+        };
+      }
+      return { ok: true, value: undefined };
     },
   };
 
@@ -229,8 +322,8 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         id: row.id as string,
         medicoId: row.medico_id as string,
         diaSemana: row.dia_semana as string,
-        horaInicio: row.hora_inicio as string,
-        horaFin: row.hora_fin as string,
+        horaInicio: normalizeTime(row.hora_inicio),
+        horaFin: normalizeTime(row.hora_fin),
       }));
     },
     async create(input) {
@@ -261,8 +354,8 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
           id: data.id,
           medicoId: data.medico_id,
           diaSemana: data.dia_semana,
-          horaInicio: data.hora_inicio,
-          horaFin: data.hora_fin,
+          horaInicio: normalizeTime(data.hora_inicio),
+          horaFin: normalizeTime(data.hora_fin),
         },
       };
     },
@@ -295,8 +388,8 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
           id: data.id,
           medicoId: data.medico_id,
           diaSemana: data.dia_semana,
-          horaInicio: data.hora_inicio,
-          horaFin: data.hora_fin,
+          horaInicio: normalizeTime(data.hora_inicio),
+          horaFin: normalizeTime(data.hora_fin),
         },
       };
     },
@@ -393,17 +486,26 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         };
       }
 
-      return {
-        ok: true,
-        value: {
-          id: data.id,
-          pacienteId: data.paciente_id,
-          medicoId: data.medico_id,
-          especialidadId: data.especialidad_id,
-          fechaHora: data.fecha_hora,
-          estado: data.estado,
-        },
+      const cita = {
+        id: data.id as string,
+        pacienteId: data.paciente_id as string,
+        medicoId: data.medico_id as string,
+        especialidadId: data.especialidad_id as string,
+        fechaHora: data.fecha_hora as string,
+        estado: data.estado as 'CONFIRMADA' | 'CANCELADA',
+        recordatorioEnviado: Boolean(data.recordatorio_enviado),
       };
+
+      const email = await emailDePaciente(pacienteId);
+      await registrarNotificacion({
+        usuarioId: pacienteId,
+        email,
+        tipo: 'CONFIRMACION_RESERVA',
+        citaId: cita.id,
+        detalle: `Cita reservada para ${fechaHora.replace('T', ' ')}.`,
+      });
+
+      return { ok: true, value: cita };
     },
 
     async listByPaciente(pacienteId) {
@@ -419,6 +521,8 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         especialidadId: row.especialidad_id as string,
         fechaHora: row.fecha_hora as string,
         estado: row.estado as 'CONFIRMADA' | 'CANCELADA',
+        motivoCancelacion: row.motivo_cancelacion as string | undefined,
+        recordatorioEnviado: Boolean(row.recordatorio_enviado),
       }));
     },
 
@@ -485,14 +589,20 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
           especialidadId: data.especialidad_id,
           fechaHora: data.fecha_hora,
           estado: data.estado,
+          motivoCancelacion: data.motivo_cancelacion,
+          recordatorioEnviado: Boolean(data.recordatorio_enviado),
         },
       };
     },
 
-    async cancelar(id, pacienteId) {
+    async cancelar(id, pacienteId, motivo) {
       const { data, error } = await client
         .from('citas')
-        .update({ estado: 'CANCELADA', actualizada_en: new Date().toISOString() })
+        .update({
+          estado: 'CANCELADA',
+          motivo_cancelacion: motivo,
+          actualizada_en: new Date().toISOString(),
+        })
         .eq('id', id)
         .eq('paciente_id', pacienteId)
         .select()
@@ -502,7 +612,44 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
       }
 
+      const email = await emailDePaciente(pacienteId);
+      await registrarNotificacion({
+        usuarioId: pacienteId,
+        email,
+        tipo: 'CANCELACION_CITA',
+        citaId: data.id as string,
+        detalle: motivo ? `Cita cancelada. Motivo: ${motivo}` : 'Cita cancelada.',
+      });
+
       return { ok: true, value: undefined };
+    },
+
+    async send24HourReminders(ahora = new Date()) {
+      const inicioVentana = new Date(ahora.getTime() + 23.5 * 60 * 60 * 1000).toISOString();
+      const finVentana = new Date(ahora.getTime() + 24.5 * 60 * 60 * 1000).toISOString();
+
+      const { data } = await client
+        .from('citas')
+        .select('id, paciente_id, fecha_hora')
+        .eq('estado', 'CONFIRMADA')
+        .eq('recordatorio_enviado', false)
+        .gte('fecha_hora', inicioVentana.slice(0, 16))
+        .lte('fecha_hora', finVentana.slice(0, 16));
+
+      const due = (data ?? []) as Array<{ id: string; paciente_id: string; fecha_hora: string }>;
+      for (const cita of due) {
+        const email = await emailDePaciente(cita.paciente_id);
+        await registrarNotificacion({
+          usuarioId: cita.paciente_id,
+          email,
+          tipo: 'RECORDATORIO_24H',
+          citaId: cita.id,
+          detalle: `Recordatorio: cita el ${cita.fecha_hora.replace('T', ' ')}.`,
+        });
+        await client.from('citas').update({ recordatorio_enviado: true }).eq('id', cita.id);
+      }
+
+      return { processed: due.length };
     },
   };
 
@@ -616,7 +763,7 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     async citas(filters) {
       let query = client
         .from('citas')
-        .select('id, paciente_id, medico_id, especialidad_id, fecha_hora, estado')
+        .select('id, paciente_id, medico_id, especialidad_id, fecha_hora, estado, motivo_cancelacion, recordatorio_enviado')
         .order('fecha_hora');
       if (filters.medicoId) query = query.eq('medico_id', filters.medicoId);
       if (filters.desde) query = query.gte('fecha_hora', filters.desde);
@@ -642,6 +789,8 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
           especialidadId: row.especialidad_id as string,
           fechaHora: row.fecha_hora as string,
           estado: row.estado as 'CONFIRMADA' | 'CANCELADA',
+          motivoCancelacion: row.motivo_cancelacion as string | undefined,
+          recordatorioEnviado: Boolean(row.recordatorio_enviado),
           medicoNombre: (medico?.nombre as string) ?? '',
           medicoApellido: (medico?.apellido as string) ?? '',
           pacienteNombre: (paciente?.nombre as string) ?? '',
@@ -651,5 +800,23 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     },
   };
 
-  return { auth, especialidades, medicos, horarios, citas, reportes };
+  const notificaciones: NotificacionesService = {
+    async list() {
+      const { data } = await client
+        .from('notificaciones')
+        .select('id, usuario_id, email, tipo, cita_id, enviado_en, detalle')
+        .order('enviado_en', { ascending: false });
+      return ((data ?? []) as Array<Record<string, unknown>>).map((row): Notificacion => ({
+        id: row.id as string,
+        usuarioId: row.usuario_id as string,
+        email: row.email as string,
+        tipo: row.tipo as TipoNotificacion,
+        citaId: row.cita_id as string,
+        enviadoEn: row.enviado_en as string,
+        detalle: row.detalle as string | undefined,
+      }));
+    },
+  };
+
+  return { auth, especialidades, medicos, horarios, citas, reportes, notificaciones };
 }

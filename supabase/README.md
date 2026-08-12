@@ -10,6 +10,9 @@ dashboard de Supabase (Proyecto → SQL Editor → New query):
 4. `migrations/0004_login_attempts.sql`
 5. `migrations/0005_horarios_y_visibilidad.sql`
 6. `migrations/0006_citas.sql`
+7. `migrations/0007_notificaciones.sql`
+8. `migrations/0008_especialidades_crud.sql`
+9. `migrations/0009_especialidades_descripcion.sql`
 
 Después de correrlos, para tener un usuario ADMIN de prueba:
 

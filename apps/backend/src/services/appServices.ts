@@ -38,10 +38,14 @@ export interface AuthService {
 export interface Especialidad {
   id: string;
   nombre: string;
+  descripcion?: string;
 }
 
 export interface EspecialidadesService {
   list(): Promise<Especialidad[]>;
+  create(input: Omit<Especialidad, 'id'>): Promise<Result<Especialidad>>;
+  update(id: string, input: Omit<Especialidad, 'id'>): Promise<Result<Especialidad>>;
+  remove(id: string): Promise<Result<void>>;
 }
 
 export interface Medico {
@@ -86,6 +90,8 @@ export interface Cita {
   especialidadId: string;
   fechaHora: string;
   estado: 'CONFIRMADA' | 'CANCELADA';
+  motivoCancelacion?: string;
+  recordatorioEnviado: boolean;
 }
 
 export interface CreateCitaInput {
@@ -99,7 +105,8 @@ export interface CitasService {
   create(input: CreateCitaInput): Promise<Result<Cita>>;
   listByPaciente(pacienteId: string): Promise<Cita[]>;
   reprogramar(id: string, pacienteId: string, fechaHora: string): Promise<Result<Cita>>;
-  cancelar(id: string, pacienteId: string): Promise<Result<void>>;
+  cancelar(id: string, pacienteId: string, motivo?: string): Promise<Result<void>>;
+  send24HourReminders(ahora?: Date): Promise<{ processed: number }>;
 }
 
 export interface OcupacionMedico {
@@ -149,6 +156,22 @@ export interface ReportesService {
   citas(filters: CitasReporteFilters): Promise<CitaReporteItem[]>;
 }
 
+export type TipoNotificacion = 'CONFIRMACION_RESERVA' | 'RECORDATORIO_24H' | 'CANCELACION_CITA';
+
+export interface Notificacion {
+  id: string;
+  usuarioId: string;
+  email: string;
+  tipo: TipoNotificacion;
+  citaId: string;
+  enviadoEn: string;
+  detalle?: string;
+}
+
+export interface NotificacionesService {
+  list(): Promise<Notificacion[]>;
+}
+
 export interface AppServices {
   auth: AuthService;
   especialidades: EspecialidadesService;
@@ -156,4 +179,5 @@ export interface AppServices {
   horarios: HorariosService;
   citas: CitasService;
   reportes: ReportesService;
+  notificaciones: NotificacionesService;
 }

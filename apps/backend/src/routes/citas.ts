@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middlewares/auth';
+import { requireAuth, requireRole } from '../middlewares/auth';
 import type { AppServices } from '../services/appServices';
 
 const fechaHoraSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'La fecha y hora no son válidas.');
@@ -12,6 +12,10 @@ const crearCitaSchema = z.object({
 
 const reprogramarSchema = z.object({
   fechaHora: fechaHoraSchema,
+});
+
+const cancelarCitaSchema = z.object({
+  motivo: z.string().trim().max(500).optional(),
 });
 
 export function createCitasRouter(services: AppServices) {
@@ -71,13 +75,24 @@ export function createCitasRouter(services: AppServices) {
   });
 
   router.put('/:id/cancelar', requireAuth(services), async (req, res) => {
-    const result = await services.citas.cancelar(req.params.id!, req.user!.id);
+    const parsed = cancelarCitaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
+      return;
+    }
+
+    const result = await services.citas.cancelar(req.params.id!, req.user!.id, parsed.data.motivo);
     if (!result.ok) {
       res.status(result.error.status).json({ error: result.error.message });
       return;
     }
 
     res.status(200).json({ message: 'Tu cita ha sido cancelada.' });
+  });
+
+  router.post('/recordatorios/run', requireAuth(services), requireRole(services, 'ADMIN'), async (_req, res) => {
+    const result = await services.citas.send24HourReminders();
+    res.status(200).json({ message: 'Recordatorios procesados.', processed: result.processed });
   });
 
   return router;

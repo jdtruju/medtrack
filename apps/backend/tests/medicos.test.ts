@@ -38,6 +38,61 @@ describe('GET /api/especialidades', () => {
   });
 });
 
+describe('CRUD /api/especialidades', () => {
+  it('permite a ADMIN crear, editar y eliminar especialidades sin medicos asociados', async () => {
+    const created = await request(app)
+      .post('/api/especialidades')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ nombre: 'Neurologia', descripcion: 'Sistema nervioso' });
+
+    expect(created.status).toBe(201);
+    expect(created.body.especialidad.nombre).toBe('Neurologia');
+
+    const updated = await request(app)
+      .put(`/api/especialidades/${created.body.especialidad.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ nombre: 'Neurologia clinica', descripcion: 'Atencion neurologica' });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.especialidad.nombre).toBe('Neurologia clinica');
+
+    const removed = await request(app)
+      .delete(`/api/especialidades/${created.body.especialidad.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(removed.status).toBe(200);
+  });
+
+  it('rechaza crear especialidades si el usuario no es ADMIN', async () => {
+    const response = await request(app)
+      .post('/api/especialidades')
+      .set('Authorization', `Bearer ${pacienteToken}`)
+      .send({ nombre: 'Neurologia' });
+
+    expect(response.status).toBe(403);
+  });
+
+  it('bloquea eliminar una especialidad con medicos asociados', async () => {
+    const especialidades = await services.especialidades.list();
+    await request(app)
+      .post('/api/medicos')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        nombre: 'Elena',
+        apellido: 'Campos',
+        email: 'elena@medtrack.test',
+        licencia: 'MED-999',
+        especialidadId: especialidades[0].id,
+      });
+
+    const response = await request(app)
+      .delete(`/api/especialidades/${especialidades[0].id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(409);
+  });
+});
+
 describe('POST /api/medicos', () => {
   it('HU-04 registra un medico con especialidad cuando el usuario es ADMIN', async () => {
     const especialidades = await services.especialidades.list();

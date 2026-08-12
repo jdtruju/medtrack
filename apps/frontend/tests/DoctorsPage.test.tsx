@@ -38,7 +38,7 @@ function renderPage() {
 describe('DoctorsPage', () => {
   it('HU-04 registra un medico con la especialidad seleccionada', async () => {
     mockJsonResponse({ especialidades: [{ id: 'esp-1', nombre: 'Cardiología' }] });
-    mockJsonResponse({ message: 'Médico registrado correctamente.' }, true, 201);
+    mockJsonResponse({ medicos: [] });
     renderPage();
 
     await waitFor(() => expect(screen.getAllByText('Cardiología').length).toBeGreaterThan(0));
@@ -48,6 +48,11 @@ describe('DoctorsPage', () => {
     fireEvent.change(screen.getByLabelText('Correo electronico'), { target: { value: 'elena@medtrack.test' } });
     fireEvent.change(screen.getByLabelText('Numero de licencia'), { target: { value: 'MED-123' } });
     fireEvent.change(screen.getByLabelText('Especialidad'), { target: { value: 'esp-1' } });
+
+    mockJsonResponse({ message: 'Médico registrado correctamente.' }, true, 201);
+    mockJsonResponse({ especialidades: [{ id: 'esp-1', nombre: 'Cardiología' }] });
+    mockJsonResponse({ medicos: [{ id: 'med-1', nombre: 'Elena', apellido: 'Campos', email: 'elena@medtrack.test', licencia: 'MED-123', especialidadId: 'esp-1' }] });
+
     fireEvent.click(screen.getByRole('button', { name: 'Registrar medico' }));
 
     expect(await screen.findByText('Médico registrado correctamente.')).toBeInTheDocument();
@@ -55,7 +60,7 @@ describe('DoctorsPage', () => {
 
   it('HU-04 muestra el error de licencia duplicada que devuelve el backend', async () => {
     mockJsonResponse({ especialidades: [{ id: 'esp-1', nombre: 'Cardiología' }] });
-    mockJsonResponse({ error: 'Ya existe un médico con esta cédula profesional.' }, false, 409);
+    mockJsonResponse({ medicos: [] });
     renderPage();
 
     await waitFor(() => expect(screen.getAllByText('Cardiología').length).toBeGreaterThan(0));
@@ -65,6 +70,9 @@ describe('DoctorsPage', () => {
     fireEvent.change(screen.getByLabelText('Correo electronico'), { target: { value: 'elena@medtrack.test' } });
     fireEvent.change(screen.getByLabelText('Numero de licencia'), { target: { value: 'MED-123' } });
     fireEvent.change(screen.getByLabelText('Especialidad'), { target: { value: 'esp-1' } });
+
+    mockJsonResponse({ error: 'Ya existe un médico con esta cédula profesional.' }, false, 409);
+
     fireEvent.click(screen.getByRole('button', { name: 'Registrar medico' }));
 
     expect(await screen.findByText('Ya existe un médico con esta cédula profesional.')).toBeInTheDocument();

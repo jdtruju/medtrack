@@ -14,8 +14,11 @@ import type {
   HorariosService,
   Medico,
   MedicosService,
+  Notificacion,
+  NotificacionesService,
   OcupacionMedico,
   ReportesService,
+  TipoNotificacion,
 } from '../services/appServices';
 
 interface StoredUser {
@@ -43,8 +46,36 @@ export function createInMemoryServices() {
   const medicos: Medico[] = [];
   const horarios: Horario[] = [];
   const citas: Cita[] = [];
+  const notificaciones: Notificacion[] = [];
   let nextId = 1;
   const newId = (prefix: string) => `${prefix}-${nextId++}`;
+
+  const subjectByTipo = (tipo: TipoNotificacion) => {
+    if (tipo === 'CONFIRMACION_RESERVA') return 'Confirmacion de cita MedTrack';
+    if (tipo === 'RECORDATORIO_24H') return 'Recordatorio de cita MedTrack';
+    return 'Cancelacion de cita MedTrack';
+  };
+
+  const registrarNotificacion = (input: {
+    usuarioId: string;
+    email: string;
+    tipo: TipoNotificacion;
+    citaId: string;
+    detalle?: string;
+  }) => {
+    const notificacion: Notificacion = {
+      id: newId('notificacion'),
+      usuarioId: input.usuarioId,
+      email: input.email,
+      tipo: input.tipo,
+      citaId: input.citaId,
+      enviadoEn: new Date().toISOString(),
+      detalle: input.detalle,
+    };
+    notificaciones.push(notificacion);
+    console.info('[correo-mock]', { to: input.email, subject: subjectByTipo(input.tipo), text: input.detalle });
+    return notificacion;
+  };
 
   const auth: AuthService = {
     async register({ nombre, apellido, email, telefono, password }) {
@@ -158,6 +189,43 @@ export function createInMemoryServices() {
     async list() {
       return especialidades;
     },
+    async create(input) {
+      if (especialidades.some((especialidad) => especialidad.nombre.toLowerCase() === input.nombre.toLowerCase())) {
+        return { ok: false, error: { status: 409, message: 'Ya existe una especialidad con este nombre.' } };
+      }
+      const especialidad: Especialidad = { id: newId('esp'), ...input };
+      especialidades.push(especialidad);
+      return { ok: true, value: especialidad };
+    },
+    async update(id, input) {
+      const index = especialidades.findIndex((especialidad) => especialidad.id === id);
+      if (index === -1) {
+        return { ok: false, error: { status: 404, message: 'Especialidad no encontrada.' } };
+      }
+      if (
+        especialidades.some(
+          (especialidad) => especialidad.id !== id && especialidad.nombre.toLowerCase() === input.nombre.toLowerCase(),
+        )
+      ) {
+        return { ok: false, error: { status: 409, message: 'Ya existe una especialidad con este nombre.' } };
+      }
+      especialidades[index] = { id, ...input };
+      return { ok: true, value: especialidades[index] };
+    },
+    async remove(id) {
+      if (medicos.some((medico) => medico.especialidadId === id)) {
+        return {
+          ok: false,
+          error: { status: 409, message: 'No se puede eliminar una especialidad con medicos asociados.' },
+        };
+      }
+      const index = especialidades.findIndex((especialidad) => especialidad.id === id);
+      if (index === -1) {
+        return { ok: false, error: { status: 404, message: 'Especialidad no encontrada.' } };
+      }
+      especialidades.splice(index, 1);
+      return { ok: true, value: undefined };
+    },
   };
 
   const medicosService: MedicosService = {
@@ -165,6 +233,9 @@ export function createInMemoryServices() {
       return medicos;
     },
     async create(input) {
+      if (!especialidades.some((especialidad) => especialidad.id === input.especialidadId)) {
+        return { ok: false, error: { status: 404, message: 'Especialidad no encontrada.' } };
+      }
       if (medicos.some((m) => m.licencia === input.licencia)) {
         return {
           ok: false,
@@ -280,8 +351,19 @@ export function createInMemoryServices() {
         especialidadId: medico.especialidadId,
         fechaHora,
         estado: 'CONFIRMADA',
+        recordatorioEnviado: false,
       };
       citas.push(cita);
+
+      const paciente = users.find((u) => u.id === pacienteId);
+      registrarNotificacion({
+        usuarioId: pacienteId,
+        email: paciente?.email ?? '',
+        tipo: 'CONFIRMACION_RESERVA',
+        citaId: cita.id,
+        detalle: `Cita reservada para ${fechaHora.replace('T', ' ')}.`,
+      });
+
       return { ok: true, value: cita };
     },
     async listByPaciente(pacienteId) {
@@ -331,13 +413,54 @@ export function createInMemoryServices() {
       cita.fechaHora = fechaHora;
       return { ok: true, value: cita };
     },
-    async cancelar(id, pacienteId) {
+    async cancelar(id, pacienteId, motivo) {
       const cita = citas.find((c) => c.id === id && c.pacienteId === pacienteId);
       if (!cita) {
         return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
       }
       cita.estado = 'CANCELADA';
+      cita.motivoCancelacion = motivo;
+
+      const paciente = users.find((u) => u.id === pacienteId);
+      registrarNotificacion({
+        usuarioId: pacienteId,
+        email: paciente?.email ?? '',
+        tipo: 'CANCELACION_CITA',
+        citaId: cita.id,
+        detalle: motivo ? `Cita cancelada. Motivo: ${motivo}` : 'Cita cancelada.',
+      });
+
       return { ok: true, value: undefined };
+    },
+    async send24HourReminders(ahora = new Date()) {
+      const inicioVentana = ahora.getTime() + 23.5 * 60 * 60 * 1000;
+      const finVentana = ahora.getTime() + 24.5 * 60 * 60 * 1000;
+      let processed = 0;
+
+      for (const cita of citas) {
+        if (cita.estado !== 'CONFIRMADA' || cita.recordatorioEnviado) continue;
+        const empiezaEn = new Date(cita.fechaHora).getTime();
+        if (empiezaEn < inicioVentana || empiezaEn > finVentana) continue;
+
+        const paciente = users.find((u) => u.id === cita.pacienteId);
+        registrarNotificacion({
+          usuarioId: cita.pacienteId,
+          email: paciente?.email ?? '',
+          tipo: 'RECORDATORIO_24H',
+          citaId: cita.id,
+          detalle: `Recordatorio: cita el ${cita.fechaHora.replace('T', ' ')}.`,
+        });
+        cita.recordatorioEnviado = true;
+        processed += 1;
+      }
+
+      return { processed };
+    },
+  };
+
+  const notificacionesService: NotificacionesService = {
+    async list() {
+      return notificaciones;
     },
   };
 
@@ -441,6 +564,7 @@ export function createInMemoryServices() {
     horarios: horariosService,
     citas: citasService,
     reportes: reportesService,
+    notificaciones: notificacionesService,
     testHelpers,
   };
 }

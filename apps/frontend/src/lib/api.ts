@@ -33,6 +33,32 @@ export interface SessionUser {
   rol: 'PACIENTE' | 'ADMIN';
 }
 
+export interface Especialidad {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+}
+
+export interface Medico {
+  id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  telefono?: string;
+  licencia: string;
+  especialidadId: string;
+}
+
+export interface Notificacion {
+  id: string;
+  usuarioId: string;
+  email: string;
+  tipo: 'CONFIRMACION_RESERVA' | 'RECORDATORIO_24H' | 'CANCELACION_CITA';
+  citaId: string;
+  enviadoEn: string;
+  detalle?: string;
+}
+
 export function saveSession(token: string, user: SessionUser): void {
   localStorage.setItem('medtrack.token', token);
   localStorage.setItem('medtrack.user', JSON.stringify(user));

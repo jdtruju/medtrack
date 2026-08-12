@@ -1,33 +1,34 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AppShell, WorkPanel } from '../../components/AppShell';
 import { FormField } from '../../components/FormField';
 import { StatusMessage } from '../../components/StatusMessage';
-import { apiRequest, getSession } from '../../lib/api';
+import { apiRequest, Especialidad, getSession, Medico } from '../../lib/api';
 import { adminNavItems } from '../../lib/nav';
 
-interface Specialty {
-  id: string;
-  nombre: string;
-}
-
-interface CreatedDoctor {
-  nombre: string;
-  apellido: string;
-  email: string;
-  licencia: string;
-  especialidad: string;
-}
-
 export function DoctorsPage() {
-  const [specialties, setSpecialties] = useState<Specialty[]>([]);
-  const [createdDoctors, setCreatedDoctors] = useState<CreatedDoctor[]>([]);
+  const [specialties, setSpecialties] = useState<Especialidad[]>([]);
+  const [doctors, setDoctors] = useState<Medico[]>([]);
+  const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
-  useEffect(() => {
+  async function fetchData() {
     const { token } = getSession();
-    apiRequest<{ especialidades: Specialty[] }>('/api/especialidades', { token })
-      .then((response) => setSpecialties(response.especialidades))
-      .catch(() => setSpecialties([]));
+    const [especialidadesRes, medicosRes] = await Promise.all([
+      apiRequest<{ especialidades: Especialidad[] }>('/api/especialidades', { token }),
+      apiRequest<{ medicos: Medico[] }>('/api/medicos', { token }),
+    ]);
+    setSpecialties(especialidadesRes.especialidades);
+    setDoctors(medicosRes.medicos);
+  }
+
+  useEffect(() => {
+    fetchData()
+      .catch(() => {
+        setSpecialties([]);
+        setDoctors([]);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -37,7 +38,6 @@ export function DoctorsPage() {
     const form = new FormData(formElement);
     const { token } = getSession();
     const especialidadId = String(form.get('especialidadId') ?? '');
-    const especialidad = specialties.find((item) => item.id === especialidadId);
 
     try {
       const response = await apiRequest<{ message: string }>('/api/medicos', {
@@ -53,18 +53,9 @@ export function DoctorsPage() {
         },
       });
 
-      setCreatedDoctors((current) => [
-        {
-          nombre: String(form.get('nombre') ?? ''),
-          apellido: String(form.get('apellido') ?? ''),
-          email: String(form.get('email') ?? ''),
-          licencia: String(form.get('licencia') ?? ''),
-          especialidad: especialidad?.nombre ?? '',
-        },
-        ...current,
-      ]);
       formElement.reset();
       setStatus({ tone: 'success', message: response.message });
+      await fetchData();
     } catch (error) {
       setStatus({ tone: 'error', message: (error as Error).message });
     }
@@ -91,9 +82,12 @@ export function DoctorsPage() {
                 id="especialidadId"
                 name="especialidadId"
                 required
+                disabled={loading || !specialties.length}
                 className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"
               >
-                <option value="">Seleccione una especialidad</option>
+                <option value="">
+                  {loading ? 'Cargando especialidades...' : specialties.length ? 'Seleccione una especialidad' : 'Primero cree una especialidad'}
+                </option>
                 {specialties.map((specialty) => (
                   <option key={specialty.id} value={specialty.id}>
                     {specialty.nombre}
@@ -102,9 +96,20 @@ export function DoctorsPage() {
               </select>
             </label>
 
+            {!loading && !specialties.length ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                No hay especialidades disponibles.{' '}
+                <Link className="font-semibold underline" to="/admin/specialties">
+                  Crear especialidad
+                </Link>
+              </div>
+            ) : null}
             {status ? <StatusMessage tone={status.tone} message={status.message} /> : null}
-            <button className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800 sm:w-fit">
-              Registrar medico
+            <button
+              className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit"
+              disabled={loading || !specialties.length}
+            >
+              {loading ? 'Cargando...' : 'Registrar medico'}
             </button>
           </form>
         </WorkPanel>
@@ -121,20 +126,24 @@ export function DoctorsPage() {
           </WorkPanel>
 
           <WorkPanel title="Registros recientes">
-            {createdDoctors.length ? (
+            {doctors.length ? (
               <div className="space-y-3">
-                {createdDoctors.map((doctor) => (
+                {doctors.map((doctor) => (
                   <article key={`${doctor.email}-${doctor.licencia}`} className="rounded-md border border-slate-200 p-3">
                     <p className="font-semibold">
                       {doctor.nombre} {doctor.apellido}
                     </p>
-                    <p className="mt-1 text-sm text-slate-600">{doctor.especialidad}</p>
-                    <p className="mt-1 text-xs text-slate-500">{doctor.email}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {specialties.find((item) => item.id === doctor.especialidadId)?.nombre ?? 'Especialidad pendiente'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {doctor.email} · Lic. {doctor.licencia}
+                    </p>
                   </article>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-600">Aun no hay medicos registrados en esta sesion.</p>
+              <p className="text-sm text-slate-600">Aun no hay medicos registrados.</p>
             )}
           </WorkPanel>
         </div>

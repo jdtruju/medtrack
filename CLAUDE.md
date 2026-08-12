@@ -42,13 +42,13 @@ medtrack/
 
 1. `npm install` en la raíz.
 2. Aplicar los archivos de `supabase/migrations/` en el SQL Editor del dashboard de Supabase, en orden (ver `supabase/README.md`).
-3. Copiar `.env.example` a `apps/backend/.env` y completar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API en el dashboard de Supabase — la `service_role key`, no la publishable).
-4. Copiar `apps/frontend/.env.example` a `apps/frontend/.env` con `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` (solo se usan para la suscripción Realtime de `AvailabilityPage`).
+3. Editar `apps/backend/.env` y completar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API en el dashboard de Supabase — la `service_role key`, no la publishable).
+4. Editar `apps/frontend/.env` con `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` (solo se usan para la suscripción Realtime de `AvailabilityPage`).
 5. `npm run dev:backend` — levanta la API en `http://localhost:4000`.
 6. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
 7. `npm test` — corre las pruebas de todos los workspaces.
 
-## Notas de Épica 1, 2, 3 y 5 (Express + Supabase)
+## Notas de Épica 1, 2, 3, 4 y 5 (Express + Supabase)
 
 - El frontend habla con Express (`/api/...`); Express es el único que tiene la `service_role key` de Supabase. La única excepción es `AvailabilityPage`, que abre una suscripción Realtime de solo lectura directo a Supabase con la key pública (Realtime es una conexión navegador→Supabase por diseño de la plataforma).
 - El correo de recuperación de contraseña es real (Supabase Auth lo envía); Express solo orquesta la llamada.
@@ -58,6 +58,7 @@ medtrack/
 - HU-07/08/09 (citas): la protección contra doble reserva es un índice único parcial en Postgres (`citas_medico_fecha_activa` en `supabase/migrations/0006_citas.sql`), no una verificación en JavaScript — es lo único que garantiza que dos pacientes no puedan reservar el mismo médico a la misma hora aunque lo intenten al mismo tiempo.
 - `fechaHora` se maneja como el string `"YYYY-MM-DDTHH:mm"` en todo el sistema (sin zona horaria) — simplificación deliberada para este proyecto académico.
 - Las franjas de reserva son de 30 minutos.
+- HU-10/11/12 (notificaciones): `apps/backend/src/services/emailService.ts` expone `createEmailSender()` — por defecto (`EMAIL_PROVIDER=mock`, o sin configurar) registra el envío en consola con el prefijo `[correo-mock]` y guarda una fila en `notificaciones` (migración `0007_notificaciones.sql`); con `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` + `RESEND_FROM` en `apps/backend/.env` se envía un correo real vía Resend. `CitasService.create`/`cancelar` disparan la notificación correspondiente (`CONFIRMACION_RESERVA`/`CANCELACION_CITA`); `apps/backend/src/jobs/reminderJob.ts` corre `send24HourReminders()` al iniciar el backend y luego cada hora, marcando `recordatorioEnviado` en la cita para no duplicar. `GET /api/notificaciones` (admin) audita los envíos; `POST /api/citas/recordatorios/run` (admin) los dispara a mano.
 - Los reportes (Épica 5) no agregan tablas nuevas: son vistas calculadas al momento sobre
   `citas`/`horarios`/`medicos`/`perfiles`. La "ocupación por médico" se calcula sobre la
   semana actual (lunes a domingo).
@@ -80,15 +81,15 @@ medtrack/
 
 ### Épica 3 – Gestión de Citas Médicas
 
-- [ ] HU-07 Crear Cita Médica — pendiente
-- [ ] HU-08 Reprogramar Cita — pendiente
-- [ ] HU-09 Cancelar Cita — pendiente
+- [x] HU-07 Crear Cita Médica — completada en Sprint 2
+- [x] HU-08 Reprogramar Cita — completada en Sprint 2
+- [x] HU-09 Cancelar Cita — completada en Sprint 2
 
 ### Épica 4 – Notificaciones
 
-- [ ] HU-10 Confirmación por Correo — pendiente
-- [ ] HU-11 Recordatorio de Citas — pendiente
-- [ ] HU-12 Notificación de Cancelación — pendiente
+- [x] HU-10 Confirmación por Correo — completada en Sprint 3 con correo mock registrado en BD
+- [x] HU-11 Recordatorio de Citas — completada en Sprint 3 con job preparado
+- [x] HU-12 Notificación de Cancelación — completada en Sprint 3 con motivo registrado
 
 ### Épica 5 – Reportes
 
