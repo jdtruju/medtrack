@@ -5,6 +5,7 @@ import { createCitasRouter } from './citas';
 import { createEspecialidadesRouter } from './especialidades';
 import { createHorariosRouter } from './horarios';
 import { createMedicosRouter } from './medicos';
+import { createReportesRouter } from './reportes';
 import { healthRouter } from './health';
 
 export function apiRouter(services: AppServices) {
@@ -15,5 +16,6 @@ export function apiRouter(services: AppServices) {
   router.use('/api/medicos', createMedicosRouter(services));
   router.use('/api/horarios', createHorariosRouter(services));
   router.use('/api/citas', createCitasRouter(services));
+  router.use('/api/reportes', createReportesRouter(services));
   return router;
 }
