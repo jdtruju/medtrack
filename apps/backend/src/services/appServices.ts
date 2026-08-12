@@ -102,10 +102,58 @@ export interface CitasService {
   cancelar(id: string, pacienteId: string): Promise<Result<void>>;
 }
 
+export interface OcupacionMedico {
+  medicoId: string;
+  nombre: string;
+  apellido: string;
+  franjasTotales: number;
+  franjasOcupadas: number;
+  porcentaje: number;
+}
+
+export interface DashboardStats {
+  totalCitas: number;
+  totalPacientes: number;
+  ocupacionPorMedico: OcupacionMedico[];
+}
+
+export interface DisponibilidadReporteItem {
+  horarioId: string;
+  medicoId: string;
+  medicoNombre: string;
+  medicoApellido: string;
+  diaSemana: string;
+  horaInicio: string;
+  horaFin: string;
+  franjasTotales: number;
+  franjasOcupadas: number;
+  franjasLibres: number;
+}
+
+export interface CitaReporteItem extends Cita {
+  medicoNombre: string;
+  medicoApellido: string;
+  pacienteNombre: string;
+  pacienteApellido: string;
+}
+
+export interface CitasReporteFilters {
+  medicoId?: string;
+  desde?: string;
+  hasta?: string;
+}
+
+export interface ReportesService {
+  dashboard(hoy: string): Promise<DashboardStats>;
+  disponibilidad(hoy: string, medicoId?: string): Promise<DisponibilidadReporteItem[]>;
+  citas(filters: CitasReporteFilters): Promise<CitaReporteItem[]>;
+}
+
 export interface AppServices {
   auth: AuthService;
   especialidades: EspecialidadesService;
   medicos: MedicosService;
   horarios: HorariosService;
   citas: CitasService;
+  reportes: ReportesService;
 }
