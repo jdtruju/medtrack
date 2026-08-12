@@ -98,3 +98,48 @@ describe('POST /api/auth/login', () => {
     expect(response.body.error).toBe('Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.');
   });
 });
+
+describe('POST /api/auth/forgot-password', () => {
+  it('HU-03 responde igual exista o no el correo', async () => {
+    const response = await request(app)
+      .post('/api/auth/forgot-password')
+      .send({ email: 'no-existe@medtrack.test' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.message).toBe('Si el correo existe, recibirás un enlace de recuperación.');
+  });
+});
+
+describe('POST /api/auth/reset-password', () => {
+  it('HU-03 rechaza un token invalido', async () => {
+    const response = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ accessToken: 'token-invalido', password: 'Nueva1234' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Este enlace ha expirado. Por favor solicita uno nuevo.');
+  });
+
+  it('HU-03 permite crear una nueva contrasena con un token valido', async () => {
+    await services.auth.register({
+      nombre: 'Ana',
+      apellido: 'Mora',
+      email: 'ana@medtrack.test',
+      password: 'Segura123',
+    });
+    const login = await services.auth.login('ana@medtrack.test', 'Segura123');
+    if (!login.ok) throw new Error('setup failed');
+
+    const response = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ accessToken: login.value.token, password: 'Nueva1234' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.message).toBe('Contraseña actualizada correctamente.');
+
+    const relogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'ana@medtrack.test', password: 'Nueva1234' });
+    expect(relogin.status).toBe(200);
+  });
+});
