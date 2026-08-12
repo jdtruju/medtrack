@@ -7,4 +7,5 @@ export const env = {
   jwtSecret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  useInMemoryDb: process.env.USE_IN_MEMORY_DB !== 'false',
 };
