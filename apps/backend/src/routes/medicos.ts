@@ -23,7 +23,7 @@ export function createMedicosRouter(services: AppServices) {
   router.post('/', requireAuth(services), requireRole(services, 'ADMIN'), async (req, res) => {
     const parsed = createMedicoSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
       return;
     }
 

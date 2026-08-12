@@ -23,7 +23,7 @@ export function createHorariosRouter(services: AppServices) {
   router.post('/', requireAuth(services), requireRole(services, 'ADMIN'), async (req, res) => {
     const parsed = horarioSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
       return;
     }
 
@@ -39,11 +39,11 @@ export function createHorariosRouter(services: AppServices) {
   router.put('/:id', requireAuth(services), requireRole(services, 'ADMIN'), async (req, res) => {
     const parsed = horarioSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
       return;
     }
 
-    const result = await services.horarios.update(req.params.id, parsed.data);
+    const result = await services.horarios.update(req.params.id!, parsed.data);
     if (!result.ok) {
       res.status(result.error.status).json({ error: result.error.message });
       return;
@@ -53,7 +53,7 @@ export function createHorariosRouter(services: AppServices) {
   });
 
   router.delete('/:id', requireAuth(services), requireRole(services, 'ADMIN'), async (req, res) => {
-    const result = await services.horarios.remove(req.params.id);
+    const result = await services.horarios.remove(req.params.id!);
     if (!result.ok) {
       res.status(result.error.status).json({ error: result.error.message });
       return;

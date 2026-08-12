@@ -82,8 +82,8 @@ describe('AvailabilityPage', () => {
     renderPage();
     await waitFor(() => expect(supabaseMock.channel).toHaveBeenCalledWith('horarios-disponibilidad'));
 
-    const channelInstance = supabaseMock.channel.mock.results[0].value;
-    const changeHandler = channelInstance.on.mock.calls[0][2];
+    const channelInstance = supabaseMock.channel.mock.results[0]!.value;
+    const changeHandler = channelInstance.on.mock.calls[0]![2];
 
     mockJsonResponse({ especialidades: [] });
     mockJsonResponse({ medicos: [] });

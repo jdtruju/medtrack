@@ -30,7 +30,7 @@ export function createAuthRouter(services: AppServices) {
   router.post('/register', async (req, res) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
       return;
     }
 
@@ -46,7 +46,7 @@ export function createAuthRouter(services: AppServices) {
   router.post('/login', async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
       return;
     }
 
@@ -62,7 +62,7 @@ export function createAuthRouter(services: AppServices) {
   router.post('/forgot-password', async (req, res) => {
     const parsed = forgotPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
       return;
     }
 
@@ -73,7 +73,7 @@ export function createAuthRouter(services: AppServices) {
   router.post('/reset-password', async (req, res) => {
     const parsed = resetPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0].message });
+      res.status(400).json({ error: parsed.error.issues[0]!.message });
       return;
     }
 
