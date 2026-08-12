@@ -1,61 +1,255 @@
-import { AppShell, StatGrid, WorkPanel } from '../../components/AppShell';
+import { useEffect, useState } from 'react';
+import { AppShell, WorkPanel } from '../../components/AppShell';
+import { apiRequest, getSession } from '../../lib/api';
+import { exportarTablaPdf } from '../../lib/exportPdf';
 import { adminNavItems } from '../../lib/nav';
 
+interface MedicoOption {
+  id: string;
+  nombre: string;
+  apellido: string;
+}
+
+interface DisponibilidadItem {
+  horarioId: string;
+  medicoId: string;
+  medicoNombre: string;
+  medicoApellido: string;
+  diaSemana: string;
+  horaInicio: string;
+  horaFin: string;
+  franjasTotales: number;
+  franjasOcupadas: number;
+  franjasLibres: number;
+}
+
+interface CitaReporteItem {
+  id: string;
+  medicoNombre: string;
+  medicoApellido: string;
+  pacienteNombre: string;
+  pacienteApellido: string;
+  fechaHora: string;
+  estado: 'CONFIRMADA' | 'CANCELADA';
+}
+
+function medicoLabel(nombre: string, apellido: string) {
+  return `Dr ${nombre} ${apellido}`;
+}
+
 export function ReportsPage() {
+  const [medicos, setMedicos] = useState<MedicoOption[]>([]);
+
+  const [medicoDisponibilidad, setMedicoDisponibilidad] = useState('');
+  const [disponibilidad, setDisponibilidad] = useState<DisponibilidadItem[]>([]);
+
+  const [medicoCitas, setMedicoCitas] = useState('');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [citas, setCitas] = useState<CitaReporteItem[]>([]);
+
+  useEffect(() => {
+    const { token } = getSession();
+    apiRequest<{ medicos: MedicoOption[] }>('/api/medicos', { token })
+      .then((response) => setMedicos(response.medicos))
+      .catch(() => setMedicos([]));
+  }, []);
+
+  useEffect(() => {
+    const { token } = getSession();
+    const query = medicoDisponibilidad ? `?medicoId=${medicoDisponibilidad}` : '';
+    apiRequest<{ items: DisponibilidadItem[] }>(`/api/reportes/disponibilidad${query}`, { token })
+      .then((response) => setDisponibilidad(response.items))
+      .catch(() => setDisponibilidad([]));
+  }, [medicoDisponibilidad]);
+
+  useEffect(() => {
+    const { token } = getSession();
+    const params = new URLSearchParams();
+    if (medicoCitas) params.set('medicoId', medicoCitas);
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    apiRequest<{ items: CitaReporteItem[] }>(`/api/reportes/citas${query}`, { token })
+      .then((response) => setCitas(response.items))
+      .catch(() => setCitas([]));
+  }, [medicoCitas, desde, hasta]);
+
+  function exportarDisponibilidad() {
+    exportarTablaPdf(
+      'Reporte de disponibilidad',
+      ['Medico', 'Dia', 'Hora inicio', 'Hora fin', 'Franjas totales', 'Ocupadas', 'Libres'],
+      disponibilidad.map((item) => [
+        medicoLabel(item.medicoNombre, item.medicoApellido),
+        item.diaSemana,
+        item.horaInicio,
+        item.horaFin,
+        String(item.franjasTotales),
+        String(item.franjasOcupadas),
+        String(item.franjasLibres),
+      ])
+    );
+  }
+
+  function exportarCitas() {
+    exportarTablaPdf(
+      'Reporte de citas',
+      ['Paciente', 'Medico', 'Fecha y hora', 'Estado'],
+      citas.map((cita) => [
+        `${cita.pacienteNombre} ${cita.pacienteApellido}`,
+        medicoLabel(cita.medicoNombre, cita.medicoApellido),
+        cita.fechaHora,
+        cita.estado,
+      ])
+    );
+  }
+
   return (
-    <AppShell title="Reportes" subtitle="Indicadores iniciales para seguimiento de calidad y operacion." navItems={adminNavItems}>
-      <StatGrid
-        stats={[
-          { label: 'Citas pendientes', value: '8', detail: 'Muestra de referencia' },
-          { label: 'Citas completadas', value: '16', detail: 'Ultimos 30 dias' },
-          { label: 'Cancelaciones', value: '2', detail: 'Bajo observacion' },
-          { label: 'Intentos fallidos', value: '0', detail: 'Bloqueos activos' },
-        ]}
-      />
-      <WorkPanel title="Reporte de Sprint 1">
+    <AppShell
+      title="Reportes"
+      subtitle="Disponibilidad y citas para seguimiento operativo."
+      navItems={adminNavItems}
+    >
+      <WorkPanel title="Disponibilidad por medico">
+        <div className="flex flex-wrap items-end gap-4">
+          <label
+            className="block text-sm font-semibold text-slate-700"
+            htmlFor="medicoDisponibilidad"
+          >
+            Medico
+            <select
+              id="medicoDisponibilidad"
+              value={medicoDisponibilidad}
+              onChange={(event) => setMedicoDisponibilidad(event.target.value)}
+              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+            >
+              <option value="">Todos los medicos</option>
+              {medicos.map((medico) => (
+                <option key={medico.id} value={medico.id}>
+                  {medico.nombre} {medico.apellido}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+            onClick={exportarDisponibilidad}
+          >
+            Exportar PDF disponibilidad
+          </button>
+        </div>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 text-slate-600">
               <tr>
-                <th className="py-2 pr-4">Historia</th>
-                <th className="py-2 pr-4">Estado</th>
-                <th className="py-2 pr-4">Cobertura</th>
+                <th className="py-2 pr-4">Medico</th>
+                <th className="py-2 pr-4">Dia</th>
+                <th className="py-2 pr-4">Hora inicio</th>
+                <th className="py-2 pr-4">Hora fin</th>
+                <th className="py-2 pr-4">Franjas totales</th>
+                <th className="py-2 pr-4">Ocupadas</th>
+                <th className="py-2 pr-4">Libres</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              <tr>
-                <td className="py-3 pr-4">HU-01 Registro de Pacientes</td>
-                <td className="py-3 pr-4">Completada</td>
-                <td className="py-3 pr-4">Backend y frontend</td>
-              </tr>
-              <tr>
-                <td className="py-3 pr-4">HU-02 Inicio de Sesion</td>
-                <td className="py-3 pr-4">Completada</td>
-                <td className="py-3 pr-4">Credenciales y bloqueo</td>
-              </tr>
-              <tr>
-                <td className="py-3 pr-4">HU-03 Recuperar Contrasena</td>
-                <td className="py-3 pr-4">Completada</td>
-                <td className="py-3 pr-4">Correo mock y expiracion</td>
-              </tr>
-              <tr>
-                <td className="py-3 pr-4">HU-04 Registrar Medico</td>
-                <td className="py-3 pr-4">Completada</td>
-                <td className="py-3 pr-4">Rol admin y duplicados</td>
-              </tr>
+              {disponibilidad.map((item) => (
+                <tr key={item.horarioId}>
+                  <td className="py-3 pr-4">
+                    {medicoLabel(item.medicoNombre, item.medicoApellido)}
+                  </td>
+                  <td className="py-3 pr-4">{item.diaSemana}</td>
+                  <td className="py-3 pr-4">{item.horaInicio}</td>
+                  <td className="py-3 pr-4">{item.horaFin}</td>
+                  <td className="py-3 pr-4">{item.franjasTotales}</td>
+                  <td className="py-3 pr-4">{item.franjasOcupadas}</td>
+                  <td className="py-3 pr-4">{item.franjasLibres}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
+          {disponibilidad.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-600">Sin horarios para este filtro.</p>
+          ) : null}
         </div>
       </WorkPanel>
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <WorkPanel title="Seguridad">
-          <p className="text-sm leading-6 text-slate-600">Bloqueo tras 3 intentos fallidos, contrasenas hasheadas y token JWT para sesion.</p>
-        </WorkPanel>
-        <WorkPanel title="Calidad">
-          <p className="text-sm leading-6 text-slate-600">Pruebas de backend y frontend cubren los criterios principales de aceptacion.</p>
-        </WorkPanel>
-        <WorkPanel title="Correo">
-          <p className="text-sm leading-6 text-slate-600">Recuperacion simulada con registro del enlace en consola del backend.</p>
+
+      <div className="mt-6">
+        <WorkPanel title="Citas">
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="medicoCitas">
+              Medico
+              <select
+                id="medicoCitas"
+                value={medicoCitas}
+                onChange={(event) => setMedicoCitas(event.target.value)}
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+              >
+                <option value="">Todos los medicos</option>
+                {medicos.map((medico) => (
+                  <option key={medico.id} value={medico.id}>
+                    {medico.nombre} {medico.apellido}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="desde">
+              Desde
+              <input
+                id="desde"
+                type="date"
+                value={desde}
+                onChange={(event) => setDesde(event.target.value)}
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+              />
+            </label>
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="hasta">
+              Hasta
+              <input
+                id="hasta"
+                type="date"
+                value={hasta}
+                onChange={(event) => setHasta(event.target.value)}
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+              />
+            </label>
+            <button
+              type="button"
+              className="rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+              onClick={exportarCitas}
+            >
+              Exportar PDF citas
+            </button>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-600">
+                <tr>
+                  <th className="py-2 pr-4">Paciente</th>
+                  <th className="py-2 pr-4">Medico</th>
+                  <th className="py-2 pr-4">Fecha y hora</th>
+                  <th className="py-2 pr-4">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {citas.map((cita) => (
+                  <tr key={cita.id}>
+                    <td className="py-3 pr-4">
+                      {cita.pacienteNombre} {cita.pacienteApellido}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {medicoLabel(cita.medicoNombre, cita.medicoApellido)}
+                    </td>
+                    <td className="py-3 pr-4">{cita.fechaHora}</td>
+                    <td className="py-3 pr-4">{cita.estado}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {citas.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-600">Sin citas para este filtro.</p>
+            ) : null}
+          </div>
         </WorkPanel>
       </div>
     </AppShell>

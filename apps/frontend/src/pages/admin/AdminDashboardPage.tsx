@@ -1,41 +1,74 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
 import { AppShell, StatGrid, WorkPanel } from '../../components/AppShell';
+import { apiRequest, getSession } from '../../lib/api';
 import { adminNavItems } from '../../lib/nav';
 
+interface OcupacionMedico {
+  medicoId: string;
+  nombre: string;
+  apellido: string;
+  franjasTotales: number;
+  franjasOcupadas: number;
+  porcentaje: number;
+}
+
+interface DashboardStats {
+  totalCitas: number;
+  totalPacientes: number;
+  ocupacionPorMedico: OcupacionMedico[];
+}
+
 export function AdminDashboardPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  useEffect(() => {
+    const { token } = getSession();
+    apiRequest<{ stats: DashboardStats }>('/api/reportes/dashboard', { token })
+      .then((response) => setStats(response.stats))
+      .catch(() => setStats(null));
+  }, []);
+
+  const datosGrafico = (stats?.ocupacionPorMedico ?? []).map((item) => ({
+    nombre: `Dr ${item.nombre} ${item.apellido}`,
+    porcentaje: item.porcentaje,
+  }));
+
   return (
-    <AppShell title="Panel administrativo" subtitle="Resumen operativo para gestion de MedTrack." navItems={adminNavItems}>
+    <AppShell
+      title="Panel administrativo"
+      subtitle="Resumen operativo para gestion de MedTrack."
+      navItems={adminNavItems}
+    >
       <StatGrid
         stats={[
-          { label: 'Pacientes registrados', value: 'Demo', detail: 'Memoria temporal activa' },
-          { label: 'Medicos activos', value: 'Sesion', detail: 'Altas disponibles hasta reiniciar' },
-          { label: 'Especialidades', value: '3', detail: 'Catalogo inicial disponible' },
-          { label: 'Alertas QA', value: '0', detail: 'Sin incidentes abiertos' },
+          {
+            label: 'Citas confirmadas',
+            value: String(stats?.totalCitas ?? 0),
+            detail: 'Historico',
+          },
+          {
+            label: 'Pacientes registrados',
+            value: String(stats?.totalPacientes ?? 0),
+            detail: 'Total en el sistema',
+          },
         ]}
       />
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
-        <WorkPanel title="Actividad reciente">
-          <ul className="mt-4 space-y-3 text-sm text-slate-600">
-            <li>Registro de pacientes habilitado con validacion de correo duplicado.</li>
-            <li>Inicio de sesion protegido con bloqueo por intentos fallidos.</li>
-            <li>Registro administrativo de medicos disponible.</li>
-          </ul>
+      <div className="mt-6">
+        <WorkPanel title="Ocupacion por medico (esta semana)">
+          {datosGrafico.length ? (
+            <BarChart width={640} height={300} data={datosGrafico} className="mt-4">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="nombre" />
+              <YAxis unit="%" domain={[0, 100]} />
+              <Tooltip />
+              <Bar dataKey="porcentaje" fill="#0f766e" />
+            </BarChart>
+          ) : (
+            <p className="mt-4 text-sm text-slate-600">Sin datos de ocupacion todavia.</p>
+          )}
         </WorkPanel>
-        <WorkPanel title="Acciones principales">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Link className="rounded-md bg-teal-700 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-teal-800" to="/admin/doctors">
-              Registrar medico
-            </Link>
-            <Link className="rounded-md border border-slate-300 px-4 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50" to="/admin/reports">
-              Ver reportes
-            </Link>
-          </div>
-          <p className="mt-4 text-sm leading-6 text-slate-600">
-            El sistema esta corriendo sin base de datos persistente. Los datos se guardan en memoria durante la sesion
-            del backend.
-          </p>
-        </WorkPanel>
-      </section>
+      </div>
     </AppShell>
   );
 }

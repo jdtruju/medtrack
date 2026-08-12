@@ -1,4 +1,9 @@
-import { diaSemanaDeFecha, generarFranjas } from '../lib/citasSlots';
+import {
+  diaSemanaDeFecha,
+  fechaDeDiaEnSemana,
+  generarFranjas,
+  rangoSemanaActual,
+} from '../lib/citasSlots';
 import type {
   AuthService,
   Cita,
@@ -9,6 +14,8 @@ import type {
   HorariosService,
   Medico,
   MedicosService,
+  OcupacionMedico,
+  ReportesService,
 } from '../services/appServices';
 
 interface StoredUser {
@@ -44,10 +51,21 @@ export function createInMemoryServices() {
       if (users.some((u) => u.email === email)) {
         return {
           ok: false,
-          error: { status: 409, message: 'Este correo ya está registrado. Por favor inicia sesión o usa otro correo.' },
+          error: {
+            status: 409,
+            message: 'Este correo ya está registrado. Por favor inicia sesión o usa otro correo.',
+          },
         };
       }
-      users.push({ id: newId('user'), email, password, nombre, apellido, telefono, rol: 'PACIENTE' });
+      users.push({
+        id: newId('user'),
+        email,
+        password,
+        nombre,
+        apellido,
+        telefono,
+        rol: 'PACIENTE',
+      });
       return { ok: true, value: undefined };
     },
     async login(email, password) {
@@ -55,7 +73,10 @@ export function createInMemoryServices() {
       if (lock?.bloqueadoHasta && lock.bloqueadoHasta > Date.now()) {
         return {
           ok: false,
-          error: { status: 403, message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.' },
+          error: {
+            status: 403,
+            message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.',
+          },
         };
       }
 
@@ -68,13 +89,19 @@ export function createInMemoryServices() {
           loginAttempts.set(email, current);
           return {
             ok: false,
-            error: { status: 403, message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.' },
+            error: {
+              status: 403,
+              message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.',
+            },
           };
         }
         loginAttempts.set(email, current);
         return {
           ok: false,
-          error: { status: 401, message: `Correo o contraseña incorrectos. Intento ${current.intentos} de 5.` },
+          error: {
+            status: 401,
+            message: `Correo o contraseña incorrectos. Intento ${current.intentos} de 5.`,
+          },
         };
       }
 
@@ -85,7 +112,13 @@ export function createInMemoryServices() {
         ok: true,
         value: {
           token,
-          usuario: { id: user.id, email: user.email, nombre: user.nombre, apellido: user.apellido, rol: user.rol },
+          usuario: {
+            id: user.id,
+            email: user.email,
+            nombre: user.nombre,
+            apellido: user.apellido,
+            rol: user.rol,
+          },
         },
       };
     },
@@ -95,11 +128,17 @@ export function createInMemoryServices() {
     async resetPassword(accessToken, password) {
       const userId = tokens.get(accessToken);
       if (!userId) {
-        return { ok: false, error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' },
+        };
       }
       const user = users.find((u) => u.id === userId);
       if (!user) {
-        return { ok: false, error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' },
+        };
       }
       user.password = password;
       return { ok: true, value: undefined };
@@ -127,7 +166,10 @@ export function createInMemoryServices() {
     },
     async create(input) {
       if (medicos.some((m) => m.licencia === input.licencia)) {
-        return { ok: false, error: { status: 409, message: 'Ya existe un médico con esta cédula profesional.' } };
+        return {
+          ok: false,
+          error: { status: 409, message: 'Ya existe un médico con esta cédula profesional.' },
+        };
       }
       const medico: Medico = { id: newId('medico'), ...input };
       medicos.push(medico);
@@ -148,7 +190,10 @@ export function createInMemoryServices() {
     },
     async create(input) {
       if (input.horaFin <= input.horaInicio) {
-        return { ok: false, error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
+        };
       }
       const horario: Horario = { id: newId('horario'), ...input };
       horarios.push(horario);
@@ -160,7 +205,10 @@ export function createInMemoryServices() {
         return { ok: false, error: { status: 404, message: 'Horario no encontrado.' } };
       }
       if (input.horaFin <= input.horaInicio) {
-        return { ok: false, error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
+        };
       }
       horarios[index] = { id, ...input };
       return { ok: true, value: horarios[index] };
@@ -182,7 +230,10 @@ export function createInMemoryServices() {
       const franjasValidas = bloques.flatMap((h) => generarFranjas(h.horaInicio, h.horaFin));
       const ocupadas = new Set(
         citas
-          .filter((c) => c.medicoId === medicoId && c.estado === 'CONFIRMADA' && c.fechaHora.startsWith(fecha))
+          .filter(
+            (c) =>
+              c.medicoId === medicoId && c.estado === 'CONFIRMADA' && c.fechaHora.startsWith(fecha)
+          )
           .map((c) => c.fechaHora.split('T')[1]!)
       );
       return franjasValidas.filter((hora) => !ocupadas.has(hora));
@@ -202,7 +253,10 @@ export function createInMemoryServices() {
       if (!franjasValidas.includes(hora)) {
         return {
           ok: false,
-          error: { status: 400, message: 'El horario seleccionado no está disponible. Elige otro para continuar.' },
+          error: {
+            status: 400,
+            message: 'El horario seleccionado no está disponible. Elige otro para continuar.',
+          },
         };
       }
 
@@ -212,7 +266,10 @@ export function createInMemoryServices() {
       if (ocupado) {
         return {
           ok: false,
-          error: { status: 409, message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.' },
+          error: {
+            status: 409,
+            message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.',
+          },
         };
       }
 
@@ -231,7 +288,9 @@ export function createInMemoryServices() {
       return citas.filter((c) => c.pacienteId === pacienteId);
     },
     async reprogramar(id, pacienteId, fechaHora) {
-      const cita = citas.find((c) => c.id === id && c.pacienteId === pacienteId && c.estado === 'CONFIRMADA');
+      const cita = citas.find(
+        (c) => c.id === id && c.pacienteId === pacienteId && c.estado === 'CONFIRMADA'
+      );
       if (!cita) {
         return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
       }
@@ -245,17 +304,27 @@ export function createInMemoryServices() {
       if (!franjasValidas.includes(hora)) {
         return {
           ok: false,
-          error: { status: 400, message: 'El horario seleccionado no está disponible. Elige otro para continuar.' },
+          error: {
+            status: 400,
+            message: 'El horario seleccionado no está disponible. Elige otro para continuar.',
+          },
         };
       }
 
       const ocupado = citas.some(
-        (c) => c.id !== id && c.medicoId === cita.medicoId && c.fechaHora === fechaHora && c.estado === 'CONFIRMADA'
+        (c) =>
+          c.id !== id &&
+          c.medicoId === cita.medicoId &&
+          c.fechaHora === fechaHora &&
+          c.estado === 'CONFIRMADA'
       );
       if (ocupado) {
         return {
           ok: false,
-          error: { status: 409, message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.' },
+          error: {
+            status: 409,
+            message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.',
+          },
         };
       }
 
@@ -272,6 +341,92 @@ export function createInMemoryServices() {
     },
   };
 
+  const reportesService: ReportesService = {
+    async dashboard(hoy) {
+      const totalCitas = citas.filter((c) => c.estado === 'CONFIRMADA').length;
+      const totalPacientes = users.filter((u) => u.rol === 'PACIENTE').length;
+      const { inicio } = rangoSemanaActual(hoy);
+
+      const ocupacionPorMedico: OcupacionMedico[] = medicos.map((medico) => {
+        const bloques = horarios.filter((h) => h.medicoId === medico.id);
+        let franjasTotales = 0;
+        let franjasOcupadas = 0;
+        for (const bloque of bloques) {
+          const franjas = generarFranjas(bloque.horaInicio, bloque.horaFin);
+          franjasTotales += franjas.length;
+          const fecha = fechaDeDiaEnSemana(inicio, bloque.diaSemana);
+          franjasOcupadas += citas.filter(
+            (c) =>
+              c.medicoId === medico.id &&
+              c.estado === 'CONFIRMADA' &&
+              c.fechaHora.startsWith(fecha) &&
+              franjas.includes(c.fechaHora.split('T')[1]!)
+          ).length;
+        }
+        return {
+          medicoId: medico.id,
+          nombre: medico.nombre,
+          apellido: medico.apellido,
+          franjasTotales,
+          franjasOcupadas,
+          porcentaje:
+            franjasTotales === 0 ? 0 : Math.round((franjasOcupadas / franjasTotales) * 100),
+        };
+      });
+
+      return { totalCitas, totalPacientes, ocupacionPorMedico };
+    },
+
+    async disponibilidad(hoy, medicoId) {
+      const { inicio } = rangoSemanaActual(hoy);
+      const bloques = horarios.filter((h) => !medicoId || h.medicoId === medicoId);
+
+      return bloques.map((bloque) => {
+        const medico = medicos.find((m) => m.id === bloque.medicoId);
+        const franjas = generarFranjas(bloque.horaInicio, bloque.horaFin);
+        const fecha = fechaDeDiaEnSemana(inicio, bloque.diaSemana);
+        const franjasOcupadas = citas.filter(
+          (c) =>
+            c.medicoId === bloque.medicoId &&
+            c.estado === 'CONFIRMADA' &&
+            c.fechaHora.startsWith(fecha) &&
+            franjas.includes(c.fechaHora.split('T')[1]!)
+        ).length;
+
+        return {
+          horarioId: bloque.id,
+          medicoId: bloque.medicoId,
+          medicoNombre: medico?.nombre ?? '',
+          medicoApellido: medico?.apellido ?? '',
+          diaSemana: bloque.diaSemana,
+          horaInicio: bloque.horaInicio,
+          horaFin: bloque.horaFin,
+          franjasTotales: franjas.length,
+          franjasOcupadas,
+          franjasLibres: franjas.length - franjasOcupadas,
+        };
+      });
+    },
+
+    async citas(filters) {
+      return citas
+        .filter((c) => !filters.medicoId || c.medicoId === filters.medicoId)
+        .filter((c) => !filters.desde || c.fechaHora >= filters.desde)
+        .filter((c) => !filters.hasta || c.fechaHora <= `${filters.hasta}T23:59`)
+        .map((c) => {
+          const medico = medicos.find((m) => m.id === c.medicoId);
+          const paciente = users.find((u) => u.id === c.pacienteId);
+          return {
+            ...c,
+            medicoNombre: medico?.nombre ?? '',
+            medicoApellido: medico?.apellido ?? '',
+            pacienteNombre: paciente?.nombre ?? '',
+            pacienteApellido: paciente?.apellido ?? '',
+          };
+        });
+    },
+  };
+
   const testHelpers = {
     promoteToAdmin(email: string) {
       const user = users.find((u) => u.email === email);
@@ -285,6 +440,7 @@ export function createInMemoryServices() {
     medicos: medicosService,
     horarios: horariosService,
     citas: citasService,
+    reportes: reportesService,
     testHelpers,
   };
 }
