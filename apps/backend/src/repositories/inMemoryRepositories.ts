@@ -1,5 +1,8 @@
+import { diaSemanaDeFecha, generarFranjas } from '../lib/citasSlots';
 import type {
   AuthService,
+  Cita,
+  CitasService,
   Especialidad,
   EspecialidadesService,
   Horario,
@@ -32,6 +35,7 @@ export function createInMemoryServices() {
   ];
   const medicos: Medico[] = [];
   const horarios: Horario[] = [];
+  const citas: Cita[] = [];
   let nextId = 1;
   const newId = (prefix: string) => `${prefix}-${nextId++}`;
 
@@ -171,6 +175,103 @@ export function createInMemoryServices() {
     },
   };
 
+  const citasService: CitasService = {
+    async listSlotsDisponibles(medicoId, fecha) {
+      const dia = diaSemanaDeFecha(fecha);
+      const bloques = horarios.filter((h) => h.medicoId === medicoId && h.diaSemana === dia);
+      const franjasValidas = bloques.flatMap((h) => generarFranjas(h.horaInicio, h.horaFin));
+      const ocupadas = new Set(
+        citas
+          .filter((c) => c.medicoId === medicoId && c.estado === 'CONFIRMADA' && c.fechaHora.startsWith(fecha))
+          .map((c) => c.fechaHora.split('T')[1])
+      );
+      return franjasValidas.filter((hora) => !ocupadas.has(hora));
+    },
+    async create({ pacienteId, medicoId, fechaHora }) {
+      const medico = medicos.find((m) => m.id === medicoId);
+      if (!medico) {
+        return { ok: false, error: { status: 404, message: 'Médico no encontrado.' } };
+      }
+
+      const [fecha, hora] = fechaHora.split('T');
+      const dia = diaSemanaDeFecha(fecha);
+      const franjasValidas = horarios
+        .filter((h) => h.medicoId === medicoId && h.diaSemana === dia)
+        .flatMap((h) => generarFranjas(h.horaInicio, h.horaFin));
+
+      if (!franjasValidas.includes(hora)) {
+        return {
+          ok: false,
+          error: { status: 400, message: 'El horario seleccionado no está disponible. Elige otro para continuar.' },
+        };
+      }
+
+      const ocupado = citas.some(
+        (c) => c.medicoId === medicoId && c.fechaHora === fechaHora && c.estado === 'CONFIRMADA'
+      );
+      if (ocupado) {
+        return {
+          ok: false,
+          error: { status: 409, message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.' },
+        };
+      }
+
+      const cita: Cita = {
+        id: newId('cita'),
+        pacienteId,
+        medicoId,
+        especialidadId: medico.especialidadId,
+        fechaHora,
+        estado: 'CONFIRMADA',
+      };
+      citas.push(cita);
+      return { ok: true, value: cita };
+    },
+    async listByPaciente(pacienteId) {
+      return citas.filter((c) => c.pacienteId === pacienteId);
+    },
+    async reprogramar(id, pacienteId, fechaHora) {
+      const cita = citas.find((c) => c.id === id && c.pacienteId === pacienteId && c.estado === 'CONFIRMADA');
+      if (!cita) {
+        return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
+      }
+
+      const [fecha, hora] = fechaHora.split('T');
+      const dia = diaSemanaDeFecha(fecha);
+      const franjasValidas = horarios
+        .filter((h) => h.medicoId === cita.medicoId && h.diaSemana === dia)
+        .flatMap((h) => generarFranjas(h.horaInicio, h.horaFin));
+
+      if (!franjasValidas.includes(hora)) {
+        return {
+          ok: false,
+          error: { status: 400, message: 'El horario seleccionado no está disponible. Elige otro para continuar.' },
+        };
+      }
+
+      const ocupado = citas.some(
+        (c) => c.id !== id && c.medicoId === cita.medicoId && c.fechaHora === fechaHora && c.estado === 'CONFIRMADA'
+      );
+      if (ocupado) {
+        return {
+          ok: false,
+          error: { status: 409, message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.' },
+        };
+      }
+
+      cita.fechaHora = fechaHora;
+      return { ok: true, value: cita };
+    },
+    async cancelar(id, pacienteId) {
+      const cita = citas.find((c) => c.id === id && c.pacienteId === pacienteId);
+      if (!cita) {
+        return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
+      }
+      cita.estado = 'CANCELADA';
+      return { ok: true, value: undefined };
+    },
+  };
+
   const testHelpers = {
     promoteToAdmin(email: string) {
       const user = users.find((u) => u.email === email);
@@ -183,6 +284,7 @@ export function createInMemoryServices() {
     especialidades: especialidadesService,
     medicos: medicosService,
     horarios: horariosService,
+    citas: citasService,
     testHelpers,
   };
 }

@@ -79,9 +79,33 @@ export interface HorariosService {
   remove(id: string): Promise<Result<void>>;
 }
 
+export interface Cita {
+  id: string;
+  pacienteId: string;
+  medicoId: string;
+  especialidadId: string;
+  fechaHora: string;
+  estado: 'CONFIRMADA' | 'CANCELADA';
+}
+
+export interface CreateCitaInput {
+  pacienteId: string;
+  medicoId: string;
+  fechaHora: string;
+}
+
+export interface CitasService {
+  listSlotsDisponibles(medicoId: string, fecha: string): Promise<string[]>;
+  create(input: CreateCitaInput): Promise<Result<Cita>>;
+  listByPaciente(pacienteId: string): Promise<Cita[]>;
+  reprogramar(id: string, pacienteId: string, fechaHora: string): Promise<Result<Cita>>;
+  cancelar(id: string, pacienteId: string): Promise<Result<void>>;
+}
+
 export interface AppServices {
   auth: AuthService;
   especialidades: EspecialidadesService;
   medicos: MedicosService;
   horarios: HorariosService;
+  citas: CitasService;
 }
