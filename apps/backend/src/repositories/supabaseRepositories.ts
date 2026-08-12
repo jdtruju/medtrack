@@ -1,15 +1,22 @@
-import { diaSemanaDeFecha, generarFranjas } from '../lib/citasSlots';
+import {
+  diaSemanaDeFecha,
+  fechaDeDiaEnSemana,
+  generarFranjas,
+  rangoSemanaActual,
+} from '../lib/citasSlots';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   AppServices,
   AuthService,
   CitasService,
+  DisponibilidadReporteItem,
   Especialidad,
   EspecialidadesService,
   Horario,
   HorariosService,
   Medico,
   MedicosService,
+  ReportesService,
 } from '../services/appServices';
 
 export function createSupabaseServices(client: SupabaseClient, frontendUrl: string): AppServices {
@@ -43,18 +50,27 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
       if (lock?.bloqueado) {
         return {
           ok: false,
-          error: { status: 403, message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.' },
+          error: {
+            status: 403,
+            message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.',
+          },
         };
       }
 
       const { data, error } = await client.auth.signInWithPassword({ email, password });
 
       if (error || !data.session || !data.user) {
-        const { data: attempt } = await client.rpc('record_login_attempt', { p_email: email, p_exitoso: false });
+        const { data: attempt } = await client.rpc('record_login_attempt', {
+          p_email: email,
+          p_exitoso: false,
+        });
         if (attempt?.bloqueado) {
           return {
             ok: false,
-            error: { status: 403, message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.' },
+            error: {
+              status: 403,
+              message: 'Cuenta bloqueada por seguridad. Intenta de nuevo en 15 minutos.',
+            },
           };
         }
         return {
@@ -90,18 +106,28 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     },
 
     async forgotPassword(email) {
-      await client.auth.resetPasswordForEmail(email, { redirectTo: `${frontendUrl}/reset-password` });
+      await client.auth.resetPasswordForEmail(email, {
+        redirectTo: `${frontendUrl}/reset-password`,
+      });
     },
 
     async resetPassword(accessToken, password) {
       const { data, error } = await client.auth.getUser(accessToken);
       if (error || !data.user) {
-        return { ok: false, error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' },
+        };
       }
 
-      const { error: updateError } = await client.auth.admin.updateUserById(data.user.id, { password });
+      const { error: updateError } = await client.auth.admin.updateUserById(data.user.id, {
+        password,
+      });
       if (updateError) {
-        return { ok: false, error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'Este enlace ha expirado. Por favor solicita uno nuevo.' },
+        };
       }
 
       return { ok: true, value: undefined };
@@ -161,7 +187,9 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
           ok: false,
           error: {
             status: isDuplicate ? 409 : 400,
-            message: isDuplicate ? 'Ya existe un médico con esta cédula profesional.' : error.message,
+            message: isDuplicate
+              ? 'Ya existe un médico con esta cédula profesional.'
+              : error.message,
           },
         };
       }
@@ -183,11 +211,16 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     async list({ medicoId, especialidadId }) {
       let medicoIds: string[] | undefined;
       if (especialidadId) {
-        const { data } = await client.from('medicos').select('id').eq('especialidad_id', especialidadId);
+        const { data } = await client
+          .from('medicos')
+          .select('id')
+          .eq('especialidad_id', especialidadId);
         medicoIds = ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
       }
 
-      let query = client.from('horarios').select('id, medico_id, dia_semana, hora_inicio, hora_fin');
+      let query = client
+        .from('horarios')
+        .select('id, medico_id, dia_semana, hora_inicio, hora_fin');
       if (medicoId) query = query.eq('medico_id', medicoId);
       if (medicoIds) query = query.in('medico_id', medicoIds);
 
@@ -202,7 +235,10 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     },
     async create(input) {
       if (input.horaFin <= input.horaInicio) {
-        return { ok: false, error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
+        };
       }
       const { data, error } = await client
         .from('horarios')
@@ -232,7 +268,10 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     },
     async update(id, input) {
       if (input.horaFin <= input.horaInicio) {
-        return { ok: false, error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' } };
+        return {
+          ok: false,
+          error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
+        };
       }
       const { data, error } = await client
         .from('horarios')
@@ -278,9 +317,9 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         .select('hora_inicio, hora_fin')
         .eq('medico_id', medicoId)
         .eq('dia_semana', dia);
-      const franjasValidas = ((bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>).flatMap((h) =>
-        generarFranjas(h.hora_inicio, h.hora_fin)
-      );
+      const franjasValidas = (
+        (bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>
+      ).flatMap((h) => generarFranjas(h.hora_inicio, h.hora_fin));
 
       const { data: ocupadasRows } = await client
         .from('citas')
@@ -290,14 +329,20 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         .gte('fecha_hora', `${fecha}T00:00:00`)
         .lte('fecha_hora', `${fecha}T23:59:59`);
       const ocupadas = new Set(
-        ((ocupadasRows ?? []) as Array<{ fecha_hora: string }>).map((row) => row.fecha_hora.slice(11, 16))
+        ((ocupadasRows ?? []) as Array<{ fecha_hora: string }>).map((row) =>
+          row.fecha_hora.slice(11, 16)
+        )
       );
 
       return franjasValidas.filter((hora) => !ocupadas.has(hora));
     },
 
     async create({ pacienteId, medicoId, fechaHora }) {
-      const { data: medico } = await client.from('medicos').select('especialidad_id').eq('id', medicoId).single();
+      const { data: medico } = await client
+        .from('medicos')
+        .select('especialidad_id')
+        .eq('id', medicoId)
+        .single();
       if (!medico) {
         return { ok: false, error: { status: 404, message: 'Médico no encontrado.' } };
       }
@@ -309,14 +354,17 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         .select('hora_inicio, hora_fin')
         .eq('medico_id', medicoId)
         .eq('dia_semana', dia);
-      const franjasValidas = ((bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>).flatMap((h) =>
-        generarFranjas(h.hora_inicio, h.hora_fin)
-      );
+      const franjasValidas = (
+        (bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>
+      ).flatMap((h) => generarFranjas(h.hora_inicio, h.hora_fin));
 
       if (!franjasValidas.includes(hora)) {
         return {
           ok: false,
-          error: { status: 400, message: 'El horario seleccionado no está disponible. Elige otro para continuar.' },
+          error: {
+            status: 400,
+            message: 'El horario seleccionado no está disponible. Elige otro para continuar.',
+          },
         };
       }
 
@@ -359,7 +407,11 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     },
 
     async listByPaciente(pacienteId) {
-      const { data } = await client.from('citas').select('*').eq('paciente_id', pacienteId).order('fecha_hora');
+      const { data } = await client
+        .from('citas')
+        .select('*')
+        .eq('paciente_id', pacienteId)
+        .order('fecha_hora');
       return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
         id: row.id as string,
         pacienteId: row.paciente_id as string,
@@ -390,14 +442,17 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         .select('hora_inicio, hora_fin')
         .eq('medico_id', existing.medico_id)
         .eq('dia_semana', dia);
-      const franjasValidas = ((bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>).flatMap((h) =>
-        generarFranjas(h.hora_inicio, h.hora_fin)
-      );
+      const franjasValidas = (
+        (bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>
+      ).flatMap((h) => generarFranjas(h.hora_inicio, h.hora_fin));
 
       if (!franjasValidas.includes(hora)) {
         return {
           ok: false,
-          error: { status: 400, message: 'El horario seleccionado no está disponible. Elige otro para continuar.' },
+          error: {
+            status: 400,
+            message: 'El horario seleccionado no está disponible. Elige otro para continuar.',
+          },
         };
       }
 
@@ -451,5 +506,150 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     },
   };
 
-  return { auth, especialidades, medicos, horarios, citas };
+  const reportes: ReportesService = {
+    async dashboard(hoy) {
+      const { count: totalCitas } = await client
+        .from('citas')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado', 'CONFIRMADA');
+
+      const { count: totalPacientes } = await client
+        .from('perfiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('rol', 'PACIENTE');
+
+      const { data: medicosRows } = await client.from('medicos').select('id, nombre, apellido');
+      const { data: horariosRows } = await client
+        .from('horarios')
+        .select('medico_id, dia_semana, hora_inicio, hora_fin');
+      const { inicio, fin } = rangoSemanaActual(hoy);
+      const { data: citasSemana } = await client
+        .from('citas')
+        .select('medico_id, fecha_hora')
+        .eq('estado', 'CONFIRMADA')
+        .gte('fecha_hora', `${inicio}T00:00`)
+        .lte('fecha_hora', `${fin}T23:59`);
+
+      const ocupacionPorMedico = ((medicosRows ?? []) as Array<Record<string, unknown>>).map(
+        (medico) => {
+          const bloques = ((horariosRows ?? []) as Array<Record<string, unknown>>).filter(
+            (h) => h.medico_id === medico.id
+          );
+          let franjasTotales = 0;
+          let franjasOcupadas = 0;
+          for (const bloque of bloques) {
+            const franjas = generarFranjas(bloque.hora_inicio as string, bloque.hora_fin as string);
+            franjasTotales += franjas.length;
+            const fecha = fechaDeDiaEnSemana(inicio, bloque.dia_semana as string);
+            franjasOcupadas += (
+              (citasSemana ?? []) as Array<{ medico_id: string; fecha_hora: string }>
+            ).filter(
+              (c) =>
+                c.medico_id === medico.id &&
+                c.fecha_hora.startsWith(fecha) &&
+                franjas.includes(c.fecha_hora.slice(11, 16))
+            ).length;
+          }
+          return {
+            medicoId: medico.id as string,
+            nombre: medico.nombre as string,
+            apellido: medico.apellido as string,
+            franjasTotales,
+            franjasOcupadas,
+            porcentaje:
+              franjasTotales === 0 ? 0 : Math.round((franjasOcupadas / franjasTotales) * 100),
+          };
+        }
+      );
+
+      return {
+        totalCitas: totalCitas ?? 0,
+        totalPacientes: totalPacientes ?? 0,
+        ocupacionPorMedico,
+      };
+    },
+
+    async disponibilidad(hoy, medicoId) {
+      let query = client
+        .from('horarios')
+        .select('id, medico_id, dia_semana, hora_inicio, hora_fin');
+      if (medicoId) query = query.eq('medico_id', medicoId);
+      const { data: bloques } = await query;
+
+      const { data: medicosRows } = await client.from('medicos').select('id, nombre, apellido');
+      const { inicio } = rangoSemanaActual(hoy);
+
+      const resultado: DisponibilidadReporteItem[] = [];
+      for (const bloque of (bloques ?? []) as Array<Record<string, unknown>>) {
+        const medico = ((medicosRows ?? []) as Array<Record<string, unknown>>).find(
+          (m) => m.id === bloque.medico_id
+        );
+        const franjas = generarFranjas(bloque.hora_inicio as string, bloque.hora_fin as string);
+        const fecha = fechaDeDiaEnSemana(inicio, bloque.dia_semana as string);
+        const { data: citasDia } = await client
+          .from('citas')
+          .select('fecha_hora')
+          .eq('medico_id', bloque.medico_id as string)
+          .eq('estado', 'CONFIRMADA')
+          .gte('fecha_hora', `${fecha}T00:00`)
+          .lte('fecha_hora', `${fecha}T23:59`);
+        const franjasOcupadas = ((citasDia ?? []) as Array<{ fecha_hora: string }>).filter((c) =>
+          franjas.includes(c.fecha_hora.slice(11, 16))
+        ).length;
+
+        resultado.push({
+          horarioId: bloque.id as string,
+          medicoId: bloque.medico_id as string,
+          medicoNombre: (medico?.nombre as string) ?? '',
+          medicoApellido: (medico?.apellido as string) ?? '',
+          diaSemana: bloque.dia_semana as string,
+          horaInicio: bloque.hora_inicio as string,
+          horaFin: bloque.hora_fin as string,
+          franjasTotales: franjas.length,
+          franjasOcupadas,
+          franjasLibres: franjas.length - franjasOcupadas,
+        });
+      }
+      return resultado;
+    },
+
+    async citas(filters) {
+      let query = client
+        .from('citas')
+        .select('id, paciente_id, medico_id, especialidad_id, fecha_hora, estado')
+        .order('fecha_hora');
+      if (filters.medicoId) query = query.eq('medico_id', filters.medicoId);
+      if (filters.desde) query = query.gte('fecha_hora', filters.desde);
+      if (filters.hasta) query = query.lte('fecha_hora', `${filters.hasta}T23:59`);
+
+      const { data } = await query;
+      const rows = (data ?? []) as Array<Record<string, unknown>>;
+
+      const { data: medicosRows } = await client.from('medicos').select('id, nombre, apellido');
+      const { data: perfilesRows } = await client.from('perfiles').select('id, nombre, apellido');
+
+      return rows.map((row) => {
+        const medico = ((medicosRows ?? []) as Array<Record<string, unknown>>).find(
+          (m) => m.id === row.medico_id
+        );
+        const paciente = ((perfilesRows ?? []) as Array<Record<string, unknown>>).find(
+          (p) => p.id === row.paciente_id
+        );
+        return {
+          id: row.id as string,
+          pacienteId: row.paciente_id as string,
+          medicoId: row.medico_id as string,
+          especialidadId: row.especialidad_id as string,
+          fechaHora: row.fecha_hora as string,
+          estado: row.estado as 'CONFIRMADA' | 'CANCELADA',
+          medicoNombre: (medico?.nombre as string) ?? '',
+          medicoApellido: (medico?.apellido as string) ?? '',
+          pacienteNombre: (paciente?.nombre as string) ?? '',
+          pacienteApellido: (paciente?.apellido as string) ?? '',
+        };
+      });
+    },
+  };
+
+  return { auth, especialidades, medicos, horarios, citas, reportes };
 }
