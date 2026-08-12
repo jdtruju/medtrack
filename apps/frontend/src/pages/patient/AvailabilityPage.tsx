@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { AppShell, WorkPanel } from '../../components/AppShell';
 import { StatusMessage } from '../../components/StatusMessage';
 import { apiRequest, getSession } from '../../lib/api';
@@ -39,6 +39,7 @@ export function AvailabilityPage() {
   const [especialidadId, setEspecialidadId] = useState('');
   const [reserva, setReserva] = useState<Reserva | null>(null);
   const [reservaStatus, setReservaStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const reservaPanelRef = useRef<HTMLDivElement>(null);
 
   async function fetchAll() {
     const { token } = getSession();
@@ -82,6 +83,14 @@ export function AvailabilityPage() {
     setReservaStatus(null);
     setReserva({ medicoId, fecha: '', franjas: [], franjaSeleccionada: '' });
   }
+
+  useEffect(() => {
+    if (reserva && typeof reservaPanelRef.current?.scrollIntoView === 'function') {
+      reservaPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // Solo se dispara cuando el panel pasa de cerrado a abierto, no en cada cambio de fecha/hora.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reserva !== null]);
 
   async function handleFechaChange(fecha: string) {
     if (!reserva) return;
@@ -161,7 +170,7 @@ export function AvailabilityPage() {
       </div>
 
       {reserva ? (
-        <div className="mt-6">
+        <div className="mt-6" ref={reservaPanelRef}>
           <WorkPanel title="Reservar cita">
             <form className="grid gap-4" onSubmit={handleConfirmarReserva}>
               <label className="block text-sm font-semibold text-slate-700" htmlFor="fechaReserva">
