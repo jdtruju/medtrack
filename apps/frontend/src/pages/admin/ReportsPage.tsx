@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppShell, WorkPanel } from '../../components/AppShell';
 import { apiRequest, getSession } from '../../lib/api';
+import { exportarTablaPdf } from '../../lib/exportPdf';
 import { adminNavItems } from '../../lib/nav';
 
 interface MedicoOption {
@@ -74,6 +75,35 @@ export function ReportsPage() {
       .catch(() => setCitas([]));
   }, [medicoCitas, desde, hasta]);
 
+  function exportarDisponibilidad() {
+    exportarTablaPdf(
+      'Reporte de disponibilidad',
+      ['Medico', 'Dia', 'Hora inicio', 'Hora fin', 'Franjas totales', 'Ocupadas', 'Libres'],
+      disponibilidad.map((item) => [
+        medicoLabel(item.medicoNombre, item.medicoApellido),
+        item.diaSemana,
+        item.horaInicio,
+        item.horaFin,
+        String(item.franjasTotales),
+        String(item.franjasOcupadas),
+        String(item.franjasLibres),
+      ])
+    );
+  }
+
+  function exportarCitas() {
+    exportarTablaPdf(
+      'Reporte de citas',
+      ['Paciente', 'Medico', 'Fecha y hora', 'Estado'],
+      citas.map((cita) => [
+        `${cita.pacienteNombre} ${cita.pacienteApellido}`,
+        medicoLabel(cita.medicoNombre, cita.medicoApellido),
+        cita.fechaHora,
+        cita.estado,
+      ])
+    );
+  }
+
   return (
     <AppShell
       title="Reportes"
@@ -101,6 +131,13 @@ export function ReportsPage() {
               ))}
             </select>
           </label>
+          <button
+            type="button"
+            className="rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+            onClick={exportarDisponibilidad}
+          >
+            Exportar PDF disponibilidad
+          </button>
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -176,6 +213,13 @@ export function ReportsPage() {
                 className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
               />
             </label>
+            <button
+              type="button"
+              className="rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+              onClick={exportarCitas}
+            >
+              Exportar PDF citas
+            </button>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
