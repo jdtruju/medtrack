@@ -112,4 +112,67 @@ describe('createInMemoryServices', () => {
     const afterRemove = await services.horarios.list({ medicoId: medico.value.id });
     expect(afterRemove).toHaveLength(0);
   });
+
+  it('crea citas evitando doble reserva y respeta los bloques de horarios', async () => {
+    const services = createInMemoryServices();
+    const [especialidad] = await services.especialidades.list();
+    const medico = await services.medicos.create({
+      nombre: 'Dr',
+      apellido: 'Garcia',
+      email: 'garcia@medtrack.test',
+      licencia: 'MED-3',
+      especialidadId: especialidad.id,
+    });
+    if (!medico.ok) throw new Error('setup failed');
+
+    // 2026-07-16 es jueves
+    await services.horarios.create({ medicoId: medico.value.id, diaSemana: 'JUE', horaInicio: '08:00', horaFin: '12:00' });
+
+    const franjas = await services.citas.listSlotsDisponibles(medico.value.id, '2026-07-16');
+    expect(franjas).toContain('10:00');
+
+    const primera = await services.citas.create({
+      pacienteId: 'paciente-1',
+      medicoId: medico.value.id,
+      fechaHora: '2026-07-16T10:00',
+    });
+    expect(primera.ok).toBe(true);
+
+    // HU-07 criterio "evita citas duplicadas": doble reserva del mismo horario
+    const segunda = await services.citas.create({
+      pacienteId: 'paciente-2',
+      medicoId: medico.value.id,
+      fechaHora: '2026-07-16T10:00',
+    });
+    expect(segunda).toEqual({
+      ok: false,
+      error: { status: 409, message: 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.' },
+    });
+
+    const fueraDeHorario = await services.citas.create({
+      pacienteId: 'paciente-3',
+      medicoId: medico.value.id,
+      fechaHora: '2026-07-16T20:00',
+    });
+    expect(fueraDeHorario.ok).toBe(false);
+
+    if (!primera.ok) throw new Error('unreachable');
+
+    const reprogramada = await services.citas.reprogramar(primera.value.id, 'paciente-1', '2026-07-16T11:00');
+    expect(reprogramada.ok).toBe(true);
+
+    const franjasTrasReprogramar = await services.citas.listSlotsDisponibles(medico.value.id, '2026-07-16');
+    expect(franjasTrasReprogramar).toContain('10:00'); // se liberó
+    expect(franjasTrasReprogramar).not.toContain('11:00'); // ahora ocupado
+
+    const cancelada = await services.citas.cancelar(primera.value.id, 'paciente-1');
+    expect(cancelada.ok).toBe(true);
+
+    const franjasTrasCancelar = await services.citas.listSlotsDisponibles(medico.value.id, '2026-07-16');
+    expect(franjasTrasCancelar).toContain('11:00'); // se liberó al cancelar
+
+    const misCitas = await services.citas.listByPaciente('paciente-1');
+    expect(misCitas).toHaveLength(1);
+    expect(misCitas[0].estado).toBe('CANCELADA');
+  });
 });

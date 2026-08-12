@@ -9,6 +9,7 @@ dashboard de Supabase (Proyecto → SQL Editor → New query):
 3. `migrations/0003_medicos.sql`
 4. `migrations/0004_login_attempts.sql`
 5. `migrations/0005_horarios_y_visibilidad.sql`
+6. `migrations/0006_citas.sql`
 
 Después de correrlos, para tener un usuario ADMIN de prueba:
 

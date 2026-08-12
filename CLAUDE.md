@@ -48,13 +48,16 @@ medtrack/
 6. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
 7. `npm test` — corre las pruebas de todos los workspaces.
 
-## Notas de Épica 1 y 2 (Express + Supabase)
+## Notas de Épica 1, 2 y 3 (Express + Supabase)
 
 - El frontend habla con Express (`/api/...`); Express es el único que tiene la `service_role key` de Supabase. La única excepción es `AvailabilityPage`, que abre una suscripción Realtime de solo lectura directo a Supabase con la key pública (Realtime es una conexión navegador→Supabase por diseño de la plataforma).
 - El correo de recuperación de contraseña es real (Supabase Auth lo envía); Express solo orquesta la llamada.
 - El bloqueo de cuenta tras 5 intentos fallidos vive en las funciones Postgres `check_login_lock`/`record_login_attempt`, llamadas desde Express.
 - Para crear el primer usuario ADMIN, ver `supabase/README.md`.
-- HU-06 ("solo horarios libres") hoy muestra todos los horarios creados — excluir los horarios con una cita activa queda para cuando exista la Épica 3.
+- HU-06 ("solo horarios libres") ya excluye los horarios con una cita `CONFIRMADA` en esa fecha/hora (vía `GET /api/citas/disponibilidad`).
+- HU-07/08/09 (citas): la protección contra doble reserva es un índice único parcial en Postgres (`citas_medico_fecha_activa` en `supabase/migrations/0006_citas.sql`), no una verificación en JavaScript — es lo único que garantiza que dos pacientes no puedan reservar el mismo médico a la misma hora aunque lo intenten al mismo tiempo.
+- `fechaHora` se maneja como el string `"YYYY-MM-DDTHH:mm"` en todo el sistema (sin zona horaria) — simplificación deliberada para este proyecto académico.
+- Las franjas de reserva son de 30 minutos.
 
 ## Backlog (fuente: ProductBacklog_MedTrack.pdf, Julio 2026)
 

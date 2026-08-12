@@ -1,7 +1,9 @@
+import { diaSemanaDeFecha, generarFranjas } from '../lib/citasSlots';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   AppServices,
   AuthService,
+  CitasService,
   Especialidad,
   EspecialidadesService,
   Horario,
@@ -268,5 +270,186 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     },
   };
 
-  return { auth, especialidades, medicos, horarios };
+  const citas: CitasService = {
+    async listSlotsDisponibles(medicoId, fecha) {
+      const dia = diaSemanaDeFecha(fecha);
+      const { data: bloques } = await client
+        .from('horarios')
+        .select('hora_inicio, hora_fin')
+        .eq('medico_id', medicoId)
+        .eq('dia_semana', dia);
+      const franjasValidas = ((bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>).flatMap((h) =>
+        generarFranjas(h.hora_inicio, h.hora_fin)
+      );
+
+      const { data: ocupadasRows } = await client
+        .from('citas')
+        .select('fecha_hora')
+        .eq('medico_id', medicoId)
+        .eq('estado', 'CONFIRMADA')
+        .gte('fecha_hora', `${fecha}T00:00:00`)
+        .lte('fecha_hora', `${fecha}T23:59:59`);
+      const ocupadas = new Set(
+        ((ocupadasRows ?? []) as Array<{ fecha_hora: string }>).map((row) => row.fecha_hora.slice(11, 16))
+      );
+
+      return franjasValidas.filter((hora) => !ocupadas.has(hora));
+    },
+
+    async create({ pacienteId, medicoId, fechaHora }) {
+      const { data: medico } = await client.from('medicos').select('especialidad_id').eq('id', medicoId).single();
+      if (!medico) {
+        return { ok: false, error: { status: 404, message: 'Médico no encontrado.' } };
+      }
+
+      const [fecha, hora] = fechaHora.split('T') as [string, string];
+      const dia = diaSemanaDeFecha(fecha);
+      const { data: bloques } = await client
+        .from('horarios')
+        .select('hora_inicio, hora_fin')
+        .eq('medico_id', medicoId)
+        .eq('dia_semana', dia);
+      const franjasValidas = ((bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>).flatMap((h) =>
+        generarFranjas(h.hora_inicio, h.hora_fin)
+      );
+
+      if (!franjasValidas.includes(hora)) {
+        return {
+          ok: false,
+          error: { status: 400, message: 'El horario seleccionado no está disponible. Elige otro para continuar.' },
+        };
+      }
+
+      const { data, error } = await client
+        .from('citas')
+        .insert({
+          paciente_id: pacienteId,
+          medico_id: medicoId,
+          especialidad_id: medico.especialidad_id,
+          fecha_hora: fechaHora,
+          estado: 'CONFIRMADA',
+        })
+        .select()
+        .single();
+
+      if (error) {
+        const isDuplicate = error.code === '23505';
+        return {
+          ok: false,
+          error: {
+            status: isDuplicate ? 409 : 400,
+            message: isDuplicate
+              ? 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.'
+              : error.message,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          id: data.id,
+          pacienteId: data.paciente_id,
+          medicoId: data.medico_id,
+          especialidadId: data.especialidad_id,
+          fechaHora: data.fecha_hora,
+          estado: data.estado,
+        },
+      };
+    },
+
+    async listByPaciente(pacienteId) {
+      const { data } = await client.from('citas').select('*').eq('paciente_id', pacienteId).order('fecha_hora');
+      return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+        id: row.id as string,
+        pacienteId: row.paciente_id as string,
+        medicoId: row.medico_id as string,
+        especialidadId: row.especialidad_id as string,
+        fechaHora: row.fecha_hora as string,
+        estado: row.estado as 'CONFIRMADA' | 'CANCELADA',
+      }));
+    },
+
+    async reprogramar(id, pacienteId, fechaHora) {
+      const { data: existing } = await client
+        .from('citas')
+        .select('medico_id')
+        .eq('id', id)
+        .eq('paciente_id', pacienteId)
+        .eq('estado', 'CONFIRMADA')
+        .single();
+
+      if (!existing) {
+        return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
+      }
+
+      const [fecha, hora] = fechaHora.split('T') as [string, string];
+      const dia = diaSemanaDeFecha(fecha);
+      const { data: bloques } = await client
+        .from('horarios')
+        .select('hora_inicio, hora_fin')
+        .eq('medico_id', existing.medico_id)
+        .eq('dia_semana', dia);
+      const franjasValidas = ((bloques ?? []) as Array<{ hora_inicio: string; hora_fin: string }>).flatMap((h) =>
+        generarFranjas(h.hora_inicio, h.hora_fin)
+      );
+
+      if (!franjasValidas.includes(hora)) {
+        return {
+          ok: false,
+          error: { status: 400, message: 'El horario seleccionado no está disponible. Elige otro para continuar.' },
+        };
+      }
+
+      const { data, error } = await client
+        .from('citas')
+        .update({ fecha_hora: fechaHora, actualizada_en: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        const isDuplicate = error.code === '23505';
+        return {
+          ok: false,
+          error: {
+            status: isDuplicate ? 409 : 400,
+            message: isDuplicate
+              ? 'Lo sentimos, este horario ya no está disponible. Por favor selecciona otro.'
+              : error.message,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          id: data.id,
+          pacienteId: data.paciente_id,
+          medicoId: data.medico_id,
+          especialidadId: data.especialidad_id,
+          fechaHora: data.fecha_hora,
+          estado: data.estado,
+        },
+      };
+    },
+
+    async cancelar(id, pacienteId) {
+      const { data, error } = await client
+        .from('citas')
+        .update({ estado: 'CANCELADA', actualizada_en: new Date().toISOString() })
+        .eq('id', id)
+        .eq('paciente_id', pacienteId)
+        .select()
+        .single();
+
+      if (error || !data) {
+        return { ok: false, error: { status: 404, message: 'Cita no encontrada.' } };
+      }
+
+      return { ok: true, value: undefined };
+    },
+  };
+
+  return { auth, especialidades, medicos, horarios, citas };
 }
