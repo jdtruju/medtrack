@@ -1,100 +1,130 @@
-# CLAUDE.md — MedTrack
+# CLAUDE.md - MedTrack
 
-Sistema de gestión de citas médicas. Proyecto académico de Aseguramiento de la Calidad de
-Software (ULACIT). Este archivo es la memoria del proyecto: stack, estructura, convenciones,
-cómo correrlo, y el backlog oficial con su estado.
+Sistema de gestion de citas medicas con enfoque en calidad y seguridad de software.
+Este archivo documenta la estructura, stack, convenciones y estado del backlog.
 
 ## Stack
 
-- **Frontend:** React + TypeScript + Vite + Tailwind CSS + React Router
-- **Backend:** Node.js + Express + TypeScript
-- **Base de datos:** PostgreSQL vía Prisma ORM
-- **Autenticación:** JWT + bcrypt (esquema de datos listo, lógica pendiente de implementar)
-- **Validación:** Zod (frontend y backend)
-- **Testing:** Vitest (+ supertest en backend, + React Testing Library en frontend)
-- **Monorepo:** npm workspaces
+- Frontend: React + TypeScript + Vite + Tailwind CSS + React Router.
+- Backend: Node.js + Express + TypeScript.
+- Base de datos y autenticacion: Supabase PostgreSQL + Supabase Auth.
+- Validacion backend: Zod.
+- Testing: Vitest, Supertest y React Testing Library.
+- Monorepo: npm workspaces.
 
-## Estructura de carpetas
+## Arquitectura
 
-```
+El frontend consume la API de Express mediante `apps/frontend/src/lib/api.ts`.
+El backend expone rutas bajo `/api/...` y concentra el acceso sensible a Supabase.
+
+La `service_role key` solo debe existir en `apps/backend/.env`.
+El frontend solo usa la publishable key para Supabase Realtime en disponibilidad.
+
+## Estructura
+
+```text
 medtrack/
-├── apps/
-│   ├── backend/       # Express + TS + Prisma
-│   └── frontend/       # Vite + React + TS + Tailwind
-├── packages/
-│   └── shared/         # Tipos TS compartidos (@medtrack/shared)
-├── docs/superpowers/   # Specs y planes de diseño
-├── package.json        # Workspace raíz
-└── CLAUDE.md           # Este archivo
+  apps/
+    backend/        Express + TypeScript + servicios Supabase
+    frontend/       React + Vite + pantallas de usuario/admin
+  packages/
+    shared/         Tipos compartidos
+  supabase/
+    migrations/     Migraciones SQL
+    README.md       Guia para configurar Supabase
+  docs/
+    superpowers/    Specs y planes del proyecto
+  CLAUDE.md
+  README.md
 ```
 
-## Convenciones de código
+## Variables de entorno
 
-- TypeScript estricto (`strict: true`) en todo el monorepo.
-- ESLint + Prettier compartidos desde la raíz; correr `npm run lint` y `npm run format` antes de commitear.
-- Componentes React en PascalCase (`LoginPage.tsx`); el resto de archivos en camelCase.
-- Cada endpoint del backend valida su entrada con Zod y responde mensajes de error claros sin exponer detalles internos (ver `apps/backend/src/middlewares/errorHandler.ts`).
-- Control de acceso por rol en cada ruta protegida, tanto en backend (middleware de auth, pendiente) como en frontend (`ProtectedRoute`).
-- Nunca almacenar contraseñas en texto plano ni loguear datos sensibles (contraseñas, tokens, cédulas).
-- El rol Médico no tiene login ni portal propio — es un registro gestionado por el Administrador (HU-04).
+Backend: `apps/backend/.env`
 
-## Cómo correr el proyecto
+```env
+PORT=4000
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:5173
+FRONTEND_URL=http://localhost:5173
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
 
-1. `npm install` en la raíz — instala los tres workspaces (`apps/backend`, `apps/frontend`, `packages/shared`).
-2. Copiar `.env.example` a `apps/backend/.env`. Para desarrollo inicial dejar `USE_IN_MEMORY_DB=true`.
-3. `npm run dev:backend` — levanta la API en `http://localhost:4000` (probar `GET /health`).
-4. `npm run dev:frontend` — levanta el frontend en `http://localhost:5173`.
-5. `npm test` — corre las pruebas de todos los workspaces.
+Frontend: `apps/frontend/.env`
 
-Cuando se implemente base de datos persistente, cambiar `USE_IN_MEMORY_DB=false`, configurar `DATABASE_URL`,
-correr `npm run prisma:generate --workspace=apps/backend` y luego `npx prisma db push --schema apps/backend/prisma/schema.prisma`.
+```env
+VITE_API_URL=http://localhost:4000
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-public-key
+```
 
-## Notas de Sprint 1
+## Como correr
 
-- El envío de correos de recuperación está simulado con `MockMailService`. En desarrollo registra el enlace/token en logs del backend y en memoria para pruebas; debe reemplazarse por SMTP/proveedor real antes de producción.
-- Sprint 1 corre sin PostgreSQL usando repositorios en memoria (`USE_IN_MEMORY_DB=true`). Los datos se reinician al reiniciar el backend.
-- Usuario admin de desarrollo: `admin@medtrack.test` / `Admin12345`.
-- La recuperación de contraseña usa tokens de 30 minutos en la tabla `password_reset_tokens`.
-- El bloqueo de inicio de sesión se activa al tercer intento fallido y dura 15 minutos.
+```bash
+npm install
+npm run dev:backend
+npm run dev:frontend
+```
 
-## Backlog (fuente: ProductBacklog_MedTrack.pdf, Julio 2026)
+Antes de iniciar sesion con datos reales, aplicar las migraciones de `supabase/migrations/`.
+Ver `supabase/README.md`.
 
-### Épica 1 – Gestión de Usuarios
+## Verificacion
 
-- [x] HU-01 Registro de Pacientes — completada en Sprint 1
-- [x] HU-02 Inicio de Sesión — completada en Sprint 1
-- [x] HU-03 Recuperar Contraseña — completada en Sprint 1
-- [x] HU-04 Registrar Médico — completada en Sprint 1
+```bash
+npm run lint
+npm test
+npm run build
+```
 
-### Épica 2 – Gestión de Médicos y Especialidades
+## Convenciones
 
-- [ ] HU-05 Gestionar Horarios — pendiente
-- [ ] HU-06 Consultar Disponibilidad — pendiente
+- TypeScript estricto en el monorepo.
+- Los endpoints validan entrada con Zod.
+- Las rutas protegidas usan `requireAuth` y, cuando aplica, `requireRole`.
+- No registrar ni exponer contrasenas, tokens ni claves privadas.
+- El medico no tiene login propio por ahora; es gestionado por el administrador.
+- Los repositorios en memoria existen para pruebas automatizadas, no para produccion.
 
-### Épica 3 – Gestión de Citas Médicas
+## Estado del backlog
 
-- [ ] HU-07 Crear Cita Médica — pendiente
-- [ ] HU-08 Reprogramar Cita — pendiente
-- [ ] HU-09 Cancelar Cita — pendiente
+### Epica 1 - Gestion de Usuarios
 
-### Épica 4 – Notificaciones
+- [x] HU-01 Registro de Pacientes
+- [x] HU-02 Inicio de Sesion
+- [x] HU-03 Recuperar Contrasena
+- [x] HU-04 Registrar Medico
 
-- [ ] HU-10 Confirmación por Correo — pendiente
-- [ ] HU-11 Recordatorio de Citas — pendiente
-- [ ] HU-12 Notificación de Cancelación — pendiente
+### Epica 2 - Gestion de Medicos y Especialidades
 
-### Épica 5 – Reportes
+- [x] HU-05 Gestionar Horarios
+- [x] HU-06 Consultar Disponibilidad
 
-- [ ] HU-13 Reporte de Disponibilidad — pendiente
-- [ ] HU-14 Reporte de Citas — pendiente
-- [ ] HU-15 Dashboard Administrativo — pendiente
+Nota HU-06: actualmente muestra horarios disponibles por medico/especialidad. La exclusion de horarios ocupados se completara cuando exista la Epica 3 de citas.
 
-### Épica 6 – Calidad del Software (QA)
+### Epica 3 - Gestion de Citas Medicas
 
-- [ ] HU-16 Pruebas Funcionales — pendiente
-- [ ] HU-17 Pruebas de Integración — pendiente
-- [ ] HU-18 Pruebas de Rendimiento — pendiente
-- [ ] HU-19 Pruebas de Usabilidad — pendiente
-- [ ] HU-20 Pruebas de Seguridad — pendiente
+- [ ] HU-07 Crear Cita Medica
+- [ ] HU-08 Reprogramar Cita
+- [ ] HU-09 Cancelar Cita
 
-**Distribución de sprints (referencia):** Sprint 1 = HU-01..04 · Sprint 2 = HU-05..09 · Sprint 3 = HU-10..14 · Sprint 4 = HU-15..20.
+### Epica 4 - Notificaciones
+
+- [ ] HU-10 Confirmacion por Correo
+- [ ] HU-11 Recordatorio de Citas
+- [ ] HU-12 Notificacion de Cancelacion
+
+### Epica 5 - Reportes
+
+- [ ] HU-13 Reporte de Disponibilidad
+- [ ] HU-14 Reporte de Citas
+- [ ] HU-15 Dashboard Administrativo
+
+### Epica 6 - Calidad del Software
+
+- [ ] HU-16 Pruebas Funcionales
+- [ ] HU-17 Pruebas de Integracion
+- [ ] HU-18 Pruebas de Rendimiento
+- [ ] HU-19 Pruebas de Usabilidad
+- [ ] HU-20 Pruebas de Seguridad

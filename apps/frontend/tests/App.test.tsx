@@ -84,16 +84,16 @@ describe('App', () => {
       JSON.stringify({ id: 'admin-1', email: 'admin@test.local', nombre: 'Admin', apellido: 'QA', rol: 'ADMIN' })
     );
     window.history.pushState({}, '', '/admin/doctors');
-    mockJsonResponse({ specialties: [] });
+    mockJsonResponse({ especialidades: [{ id: 'esp-1', nombre: 'Pediatria' }] });
     mockJsonResponse({ message: 'Medico registrado correctamente.' }, true, 201);
     render(<App />);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/specialties'), expect.anything()));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/especialidades'), expect.anything()));
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Elena' } });
     fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Campos' } });
     fireEvent.change(screen.getByLabelText('Correo electronico'), { target: { value: 'elena@medtrack.test' } });
     fireEvent.change(screen.getByLabelText('Numero de licencia'), { target: { value: 'MED-123' } });
-    fireEvent.change(screen.getByLabelText('Nueva especialidad'), { target: { value: 'Pediatria' } });
+    fireEvent.change(screen.getByLabelText('Especialidad'), { target: { value: 'esp-1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Registrar medico' }));
 
     expect(await screen.findByText('Medico registrado correctamente.')).toBeInTheDocument();

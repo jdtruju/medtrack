@@ -15,16 +15,16 @@ export function LoginPage() {
     const form = new FormData(event.currentTarget);
 
     try {
-      const response = await apiRequest<{ message: string; token: string; user: SessionUser }>('/auth/login', {
+      const response = await apiRequest<{ token: string; usuario: SessionUser }>('/api/auth/login', {
         method: 'POST',
         body: {
           email: form.get('email'),
           password: form.get('password'),
         },
       });
-      saveSession(response.token, response.user);
-      setStatus({ tone: 'success', message: response.message });
-      navigate(response.user.rol === 'ADMIN' ? '/admin/dashboard' : '/patient/dashboard');
+      saveSession(response.token, response.usuario);
+      setStatus({ tone: 'success', message: 'Inicio de sesion exitoso.' });
+      navigate(response.usuario.rol === 'ADMIN' ? '/admin/dashboard' : '/patient/dashboard');
     } catch (error) {
       setStatus({ tone: 'error', message: (error as Error).message });
     }

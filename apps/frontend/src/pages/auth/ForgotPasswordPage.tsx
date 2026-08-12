@@ -14,7 +14,7 @@ export function ForgotPasswordPage() {
     const form = new FormData(event.currentTarget);
 
     try {
-      const response = await apiRequest<{ message: string }>('/auth/forgot-password', {
+      const response = await apiRequest<{ message: string }>('/api/auth/forgot-password', {
         method: 'POST',
         body: { email: form.get('email') },
       });

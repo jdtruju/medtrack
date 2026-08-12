@@ -8,7 +8,11 @@ import { apiRequest } from '../../lib/api';
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-  const token = searchParams.get('token') ?? '';
+  const accessToken =
+    searchParams.get('access_token') ??
+    searchParams.get('token') ??
+    new URLSearchParams(window.location.hash.replace(/^#/, '')).get('access_token') ??
+    '';
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -16,9 +20,9 @@ export function ResetPasswordPage() {
     const form = new FormData(event.currentTarget);
 
     try {
-      const response = await apiRequest<{ message: string }>('/auth/reset-password', {
+      const response = await apiRequest<{ message: string }>('/api/auth/reset-password', {
         method: 'POST',
-        body: { token, password: form.get('password') },
+        body: { accessToken, password: form.get('password') },
       });
       setStatus({ tone: 'success', message: response.message });
     } catch (error) {

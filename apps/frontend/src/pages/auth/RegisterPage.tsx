@@ -15,7 +15,7 @@ export function RegisterPage() {
     const form = new FormData(formElement);
 
     try {
-      const response = await apiRequest<{ message: string }>('/auth/register', {
+      const response = await apiRequest<{ message: string }>('/api/auth/register', {
         method: 'POST',
         body: {
           nombre: form.get('nombre'),

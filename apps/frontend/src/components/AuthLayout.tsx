@@ -26,12 +26,12 @@ export function AuthLayout({ title, subtitle, eyebrow = 'Fase 1 - Gestion de Usu
                 <p className="mt-1 text-teal-100">Validacion, bloqueo temporal y JWT.</p>
               </div>
               <div className="rounded-lg border border-teal-500/40 bg-teal-700/50 p-4">
-                <p className="font-semibold">Sin base por ahora</p>
-                <p className="mt-1 text-teal-100">Datos temporales en memoria para demo.</p>
+                <p className="font-semibold">Supabase activo</p>
+                <p className="mt-1 text-teal-100">Autenticacion y datos con respaldo real.</p>
               </div>
             </div>
           </div>
-          <p className="mt-8 text-sm text-teal-100">Admin demo: admin@medtrack.test / Admin12345</p>
+          <p className="mt-8 text-sm text-teal-100">Configure el primer admin desde Supabase SQL Editor.</p>
         </aside>
 
         <div className="flex items-center justify-center p-6 sm:p-8">

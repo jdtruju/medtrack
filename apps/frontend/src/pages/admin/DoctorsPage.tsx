@@ -3,6 +3,7 @@ import { AppShell, WorkPanel } from '../../components/AppShell';
 import { FormField } from '../../components/FormField';
 import { StatusMessage } from '../../components/StatusMessage';
 import { apiRequest, getSession } from '../../lib/api';
+import { adminNavItems } from '../../lib/nav';
 
 interface Specialty {
   id: string;
@@ -17,21 +18,14 @@ interface CreatedDoctor {
   especialidad: string;
 }
 
-const adminNav = [
-  { label: 'Panel', to: '/admin/dashboard' },
-  { label: 'Medicos', to: '/admin/doctors' },
-  { label: 'Especialidades', to: '/admin/specialties' },
-  { label: 'Reportes', to: '/admin/reports' },
-];
-
 export function DoctorsPage() {
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [createdDoctors, setCreatedDoctors] = useState<CreatedDoctor[]>([]);
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    apiRequest<{ specialties: Specialty[] }>('/specialties')
-      .then((response) => setSpecialties(response.specialties))
+    apiRequest<{ especialidades: Specialty[] }>('/api/especialidades')
+      .then((response) => setSpecialties(response.especialidades))
       .catch(() => setSpecialties([]));
   }, []);
 
@@ -43,10 +37,9 @@ export function DoctorsPage() {
     const { token } = getSession();
     const selectedSpecialtyId = String(form.get('especialidadId') ?? '');
     const selectedSpecialty = specialties.find((item) => item.id === selectedSpecialtyId);
-    const especialidadNombre = selectedSpecialty?.nombre || String(form.get('especialidadNombre') ?? '');
 
     try {
-      const response = await apiRequest<{ message: string }>('/doctors', {
+      const response = await apiRequest<{ message: string }>('/api/medicos', {
         method: 'POST',
         token,
         body: {
@@ -55,8 +48,7 @@ export function DoctorsPage() {
           email: form.get('email'),
           telefono: form.get('telefono'),
           licencia: form.get('licencia'),
-          especialidadId: selectedSpecialtyId || undefined,
-          especialidadNombre: selectedSpecialtyId ? undefined : form.get('especialidadNombre'),
+          especialidadId: selectedSpecialtyId,
         },
       });
 
@@ -66,7 +58,7 @@ export function DoctorsPage() {
           apellido: String(form.get('apellido') ?? ''),
           email: String(form.get('email') ?? ''),
           licencia: String(form.get('licencia') ?? ''),
-          especialidad: especialidadNombre || 'Medicina general',
+          especialidad: selectedSpecialty?.nombre ?? 'Sin especialidad',
         },
         ...current,
       ]);
@@ -78,7 +70,7 @@ export function DoctorsPage() {
   }
 
   return (
-    <AppShell title="Medicos" subtitle="Registro administrativo de profesionales y especialidades." navItems={adminNav}>
+    <AppShell title="Medicos" subtitle="Registro administrativo de profesionales y especialidades." navItems={adminNavItems}>
       <div className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
         <WorkPanel title="Registrar medico">
           <form className="grid gap-4" onSubmit={handleSubmit}>
@@ -92,24 +84,22 @@ export function DoctorsPage() {
             </div>
             <FormField id="licencia" name="licencia" label="Numero de licencia" required />
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-semibold text-slate-700" htmlFor="especialidadId">
-                Especialidad existente
-                <select
-                  id="especialidadId"
-                  name="especialidadId"
-                  className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                >
-                  <option value="">Crear nueva especialidad</option>
-                  {specialties.map((specialty) => (
-                    <option key={specialty.id} value={specialty.id}>
-                      {specialty.nombre}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <FormField id="especialidadNombre" name="especialidadNombre" label="Nueva especialidad" />
-            </div>
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="especialidadId">
+              Especialidad
+              <select
+                id="especialidadId"
+                name="especialidadId"
+                required
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"
+              >
+                <option value="">Seleccione una especialidad</option>
+                {specialties.map((specialty) => (
+                  <option key={specialty.id} value={specialty.id}>
+                    {specialty.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             {status ? <StatusMessage tone={status.tone} message={status.message} /> : null}
             <button className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800 sm:w-fit">
