@@ -112,71 +112,71 @@ export function ReportsPage() {
       subtitle="Disponibilidad y citas para seguimiento operativo."
       navItems={adminNavItems}
     >
-      <WorkPanel title="Disponibilidad por medico">
-        <div className="flex flex-wrap items-end gap-4">
-          <label
-            className="block text-sm font-semibold text-slate-700"
-            htmlFor="medicoDisponibilidad"
-          >
-            Medico
-            <select
-              id="medicoDisponibilidad"
-              value={medicoDisponibilidad}
-              onChange={(event) => setMedicoDisponibilidad(event.target.value)}
-              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+      <div className="grid gap-6 lg:grid-cols-2">
+        <WorkPanel title="Disponibilidad por medico">
+          <div className="flex flex-wrap items-end gap-4">
+            <label
+              className="block text-sm font-semibold text-slate-700"
+              htmlFor="medicoDisponibilidad"
             >
-              <option value="">Todos los medicos</option>
-              {medicos.map((medico) => (
-                <option key={medico.id} value={medico.id}>
-                  {medico.nombre} {medico.apellido}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
-            onClick={exportarDisponibilidad}
-          >
-            Exportar PDF disponibilidad
-          </button>
-        </div>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 text-slate-600">
-              <tr>
-                <th className="py-2 pr-4">Medico</th>
-                <th className="py-2 pr-4">Dia</th>
-                <th className="py-2 pr-4">Hora inicio</th>
-                <th className="py-2 pr-4">Hora fin</th>
-                <th className="py-2 pr-4">Franjas totales</th>
-                <th className="py-2 pr-4">Ocupadas</th>
-                <th className="py-2 pr-4">Libres</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {disponibilidad.map((item) => (
-                <tr key={item.horarioId}>
-                  <td className="py-3 pr-4">
-                    {medicoLabel(item.medicoNombre, item.medicoApellido)}
-                  </td>
-                  <td className="py-3 pr-4">{item.diaSemana}</td>
-                  <td className="py-3 pr-4">{item.horaInicio}</td>
-                  <td className="py-3 pr-4">{item.horaFin}</td>
-                  <td className="py-3 pr-4">{item.franjasTotales}</td>
-                  <td className="py-3 pr-4">{item.franjasOcupadas}</td>
-                  <td className="py-3 pr-4">{item.franjasLibres}</td>
+              Medico
+              <select
+                id="medicoDisponibilidad"
+                value={medicoDisponibilidad}
+                onChange={(event) => setMedicoDisponibilidad(event.target.value)}
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
+              >
+                <option value="">Todos los medicos</option>
+                {medicos.map((medico) => (
+                  <option key={medico.id} value={medico.id}>
+                    {medico.nombre} {medico.apellido}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="rounded-md bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+              onClick={exportarDisponibilidad}
+            >
+              Exportar PDF disponibilidad
+            </button>
+          </div>
+          <div className="mt-4 max-h-[32rem] overflow-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-white text-slate-600">
+                <tr>
+                  <th className="py-2 pr-4">Medico</th>
+                  <th className="py-2 pr-4">Dia</th>
+                  <th className="py-2 pr-4">Hora inicio</th>
+                  <th className="py-2 pr-4">Hora fin</th>
+                  <th className="py-2 pr-4">Franjas totales</th>
+                  <th className="py-2 pr-4">Ocupadas</th>
+                  <th className="py-2 pr-4">Libres</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {disponibilidad.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-600">Sin horarios para este filtro.</p>
-          ) : null}
-        </div>
-      </WorkPanel>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {disponibilidad.map((item) => (
+                  <tr key={item.horarioId}>
+                    <td className="py-3 pr-4">
+                      {medicoLabel(item.medicoNombre, item.medicoApellido)}
+                    </td>
+                    <td className="py-3 pr-4">{item.diaSemana}</td>
+                    <td className="py-3 pr-4">{item.horaInicio}</td>
+                    <td className="py-3 pr-4">{item.horaFin}</td>
+                    <td className="py-3 pr-4">{item.franjasTotales}</td>
+                    <td className="py-3 pr-4">{item.franjasOcupadas}</td>
+                    <td className="py-3 pr-4">{item.franjasLibres}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {disponibilidad.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-600">Sin horarios para este filtro.</p>
+            ) : null}
+          </div>
+        </WorkPanel>
 
-      <div className="mt-6">
         <WorkPanel title="Citas">
           <div className="flex flex-wrap items-end gap-4">
             <label className="block text-sm font-semibold text-slate-700" htmlFor="medicoCitas">
@@ -223,9 +223,9 @@ export function ReportsPage() {
               Exportar PDF citas
             </button>
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 max-h-[32rem] overflow-auto">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 text-slate-600">
+              <thead className="border-b border-slate-200 bg-white text-slate-600">
                 <tr>
                   <th className="py-2 pr-4">Paciente</th>
                   <th className="py-2 pr-4">Medico</th>
