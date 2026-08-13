@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { AppShell, WorkPanel } from '../../components/AppShell';
 import { StatusMessage } from '../../components/StatusMessage';
 import { apiRequest, getSession } from '../../lib/api';
@@ -39,7 +39,6 @@ export function AvailabilityPage() {
   const [especialidadId, setEspecialidadId] = useState('');
   const [reserva, setReserva] = useState<Reserva | null>(null);
   const [reservaStatus, setReservaStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-  const reservaPanelRef = useRef<HTMLDivElement>(null);
 
   async function fetchAll() {
     const { token } = getSession();
@@ -84,11 +83,17 @@ export function AvailabilityPage() {
     setReserva({ medicoId, fecha: '', franjas: [], franjaSeleccionada: '' });
   }
 
+  function cerrarReserva() {
+    setReserva(null);
+  }
+
   useEffect(() => {
-    if (reserva && typeof reservaPanelRef.current?.scrollIntoView === 'function') {
-      reservaPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!reserva) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') cerrarReserva();
     }
-    // Solo se dispara cuando el panel pasa de cerrado a abierto, no en cada cambio de fecha/hora.
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reserva !== null]);
 
@@ -170,9 +175,31 @@ export function AvailabilityPage() {
       </div>
 
       {reserva ? (
-        <div className="mt-6" ref={reservaPanelRef}>
-          <WorkPanel title="Reservar cita">
-            <form className="grid gap-4" onSubmit={handleConfirmarReserva}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          onClick={cerrarReserva}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservarCitaTitulo"
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <h2 id="reservarCitaTitulo" className="text-lg font-semibold">
+                Reservar cita
+              </h2>
+              <button
+                type="button"
+                aria-label="Cerrar"
+                className="text-slate-400 hover:text-slate-600"
+                onClick={cerrarReserva}
+              >
+                ✕
+              </button>
+            </div>
+            <form className="mt-4 grid gap-4" onSubmit={handleConfirmarReserva}>
               <label className="block text-sm font-semibold text-slate-700" htmlFor="fechaReserva">
                 Fecha
                 <input
@@ -203,11 +230,20 @@ export function AvailabilityPage() {
                   </select>
                 </label>
               ) : null}
-              <button className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800 sm:w-fit">
-                Confirmar reserva
-              </button>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50"
+                  onClick={cerrarReserva}
+                >
+                  Cancelar
+                </button>
+                <button className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800">
+                  Confirmar reserva
+                </button>
+              </div>
             </form>
-          </WorkPanel>
+          </div>
         </div>
       ) : null}
     </AppShell>
