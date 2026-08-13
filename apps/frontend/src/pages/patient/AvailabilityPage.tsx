@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppShell, WorkPanel } from '../../components/AppShell';
 import { StatusMessage } from '../../components/StatusMessage';
 import { apiRequest, getSession } from '../../lib/api';
@@ -25,11 +25,50 @@ interface Horario {
   horaFin: string;
 }
 
+interface Slot {
+  fecha: string;
+  hora: string;
+}
+
 interface Reserva {
   medicoId: string;
-  fecha: string;
-  franjas: string[];
-  franjaSeleccionada: string;
+  cargando: boolean;
+  slots: Slot[];
+  seleccionado: Slot | null;
+}
+
+const DIAS_SEMANA_CODIGOS = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+const HORIZONTE_DIAS = 21;
+
+function formatearFechaISO(fecha: Date): string {
+  const y = fecha.getFullYear();
+  const m = String(fecha.getMonth() + 1).padStart(2, '0');
+  const d = String(fecha.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function diaSemanaDe(fechaISO: string): string {
+  return DIAS_SEMANA_CODIGOS[new Date(`${fechaISO}T00:00:00`).getDay()]!;
+}
+
+function formatearFechaCorta(fechaISO: string): string {
+  const [, mes, dia] = fechaISO.split('-') as [string, string, string];
+  return `${dia}/${mes}`;
+}
+
+function proximasFechasParaDias(dias: Set<string>, horizonteDias = HORIZONTE_DIAS): string[] {
+  const fechas: string[] = [];
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  for (let i = 0; i < horizonteDias; i += 1) {
+    const candidata = new Date(hoy);
+    candidata.setDate(hoy.getDate() + i);
+    const fechaISO = formatearFechaISO(candidata);
+    if (dias.has(diaSemanaDe(fechaISO))) {
+      fechas.push(fechaISO);
+    }
+  }
+  return fechas;
 }
 
 export function AvailabilityPage() {
@@ -79,10 +118,29 @@ export function AvailabilityPage() {
     return medico ? `Dr ${medico.nombre} ${medico.apellido}` : medicoId;
   }
 
-  function iniciarReserva(medicoId: string) {
+  async function iniciarReserva(medicoId: string) {
     setReservaStatus(null);
     setFranjaError('');
-    setReserva({ medicoId, fecha: '', franjas: [], franjaSeleccionada: '' });
+    setReserva({ medicoId, cargando: true, slots: [], seleccionado: null });
+
+    const diasDelMedico = new Set(horarios.filter((h) => h.medicoId === medicoId).map((h) => h.diaSemana));
+    const fechasCandidatas = proximasFechasParaDias(diasDelMedico);
+    const { token } = getSession();
+
+    try {
+      const respuestas = await Promise.all(
+        fechasCandidatas.map((fecha) =>
+          apiRequest<{ franjas: string[] }>(`/api/citas/disponibilidad?medicoId=${medicoId}&fecha=${fecha}`, { token })
+        )
+      );
+      const slots: Slot[] = fechasCandidatas.flatMap((fecha, index) =>
+        respuestas[index]!.franjas.map((hora) => ({ fecha, hora }))
+      );
+      setReserva({ medicoId, cargando: false, slots, seleccionado: null });
+    } catch (error) {
+      setReserva({ medicoId, cargando: false, slots: [], seleccionado: null });
+      setFranjaError((error as Error).message);
+    }
   }
 
   function cerrarReserva() {
@@ -99,42 +157,24 @@ export function AvailabilityPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reserva !== null]);
 
-  async function handleFechaChange(fecha: string) {
-    if (!reserva) return;
-    setFranjaError('');
-    setReserva({ ...reserva, fecha, franjas: [], franjaSeleccionada: '' });
-    try {
-      const { token } = getSession();
-      const response = await apiRequest<{ franjas: string[] }>(
-        `/api/citas/disponibilidad?medicoId=${reserva.medicoId}&fecha=${fecha}`,
-        { token }
-      );
-      setReserva({ ...reserva, fecha, franjas: response.franjas, franjaSeleccionada: '' });
-      if (!response.franjas.length) {
-        setFranjaError('Este médico no atiende ese día, o ya no quedan franjas libres. Elegí otra fecha.');
-      }
-    } catch (error) {
-      setFranjaError((error as Error).message);
-    }
-  }
-
-  async function handleConfirmarReserva(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!reserva || !reserva.franjaSeleccionada) return;
+  async function handleConfirmarReserva() {
+    if (!reserva || !reserva.seleccionado) return;
     const { token } = getSession();
 
     try {
       const response = await apiRequest<{ message: string }>('/api/citas', {
         method: 'POST',
         token,
-        body: { medicoId: reserva.medicoId, fechaHora: `${reserva.fecha}T${reserva.franjaSeleccionada}` },
+        body: { medicoId: reserva.medicoId, fechaHora: `${reserva.seleccionado.fecha}T${reserva.seleccionado.hora}` },
       });
       setReservaStatus({ tone: 'success', message: response.message });
       setReserva(null);
     } catch (error) {
-      setReservaStatus({ tone: 'error', message: (error as Error).message });
+      setFranjaError((error as Error).message);
     }
   }
+
+  const fechasConSlots = reserva ? Array.from(new Set(reserva.slots.map((slot) => slot.fecha))) : [];
 
   return (
     <AppShell title="Disponibilidad" subtitle="Consulte horarios disponibles por especialidad." navItems={patientNavItems}>
@@ -220,54 +260,74 @@ export function AvailabilityPage() {
                 ✕
               </button>
             </div>
-            <form className="mt-4 grid gap-4" onSubmit={handleConfirmarReserva}>
-              <label className="block text-sm font-semibold text-slate-700" htmlFor="fechaReserva">
-                Fecha
-                <input
-                  id="fechaReserva"
-                  type="date"
-                  required
-                  value={reserva.fecha}
-                  onChange={(event) => handleFechaChange(event.target.value)}
-                  className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
-                />
-              </label>
-              {reserva.fecha && reserva.franjas.length ? (
-                <label className="block text-sm font-semibold text-slate-700" htmlFor="horaReserva">
-                  Hora disponible
-                  <select
-                    id="horaReserva"
-                    required
-                    value={reserva.franjaSeleccionada}
-                    onChange={(event) => setReserva({ ...reserva, franjaSeleccionada: event.target.value })}
-                    className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
-                  >
-                    <option value="">Seleccione una hora</option>
-                    {reserva.franjas.map((franja) => (
-                      <option key={franja} value={franja}>
-                        {franja}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
+            <div className="mt-4">
+              <p className="text-sm font-semibold text-slate-700">Horarios disponibles</p>
+
+              {reserva.cargando ? (
+                <p className="mt-3 text-sm text-slate-600">Buscando horarios disponibles...</p>
+              ) : fechasConSlots.length ? (
+                <div className="mt-3 grid max-h-72 gap-4 overflow-y-auto pr-1">
+                  {fechasConSlots.map((fecha) => (
+                    <div key={fecha}>
+                      <p className="text-xs font-semibold uppercase text-slate-500">
+                        {diaSemanaDe(fecha)} {formatearFechaCorta(fecha)}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {reserva.slots
+                          .filter((slot) => slot.fecha === fecha)
+                          .map((slot) => {
+                            const activo =
+                              reserva.seleccionado?.fecha === slot.fecha && reserva.seleccionado?.hora === slot.hora;
+                            return (
+                              <button
+                                key={`${slot.fecha}-${slot.hora}`}
+                                type="button"
+                                onClick={() => setReserva({ ...reserva, seleccionado: slot })}
+                                className={`rounded-md border px-3 py-1.5 text-sm font-semibold transition ${
+                                  activo
+                                    ? 'border-teal-700 bg-teal-700 text-white'
+                                    : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                {slot.hora}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-600">
+                  No hay horarios libres en las próximas tres semanas para este médico.
+                </p>
+              )}
+
+              {franjaError ? (
+                <div className="mt-3">
+                  <StatusMessage tone="error" message={franjaError} />
+                </div>
               ) : null}
-              {franjaError ? <StatusMessage tone="error" message={franjaError} /> : null}
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  className="rounded-md border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50"
-                  onClick={cerrarReserva}
-                >
-                  Cancelar
-                </button>
-                <button
-                  disabled={!reserva.franjaSeleccionada}
-                  className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Confirmar reserva
-                </button>
-              </div>
-            </form>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-50"
+                onClick={cerrarReserva}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!reserva.seleccionado}
+                onClick={handleConfirmarReserva}
+                className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Confirmar reserva
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

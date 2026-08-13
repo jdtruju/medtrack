@@ -17,6 +17,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   fetchMock.mockReset();
+  vi.useRealTimers();
 });
 
 vi.mock('../src/lib/supabaseClient', async () => {
@@ -95,6 +96,10 @@ describe('AvailabilityPage', () => {
   });
 
   it('HU-07 permite reservar una franja disponible', async () => {
+    // 2026-07-16 es jueves; con horizonte de 21 dias caen 3 jueves: 16, 23 y 30 de julio.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-16T10:00:00'));
+
     mockJsonResponse({ especialidades: [] });
     mockJsonResponse({ medicos: [{ id: 'med-1', nombre: 'Dr', apellido: 'Lopez', especialidadId: 'esp-1' }] });
     mockJsonResponse({ horarios: [{ id: 'h1', medicoId: 'med-1', diaSemana: 'JUE', horaInicio: '08:00', horaFin: '12:00' }] });
@@ -102,13 +107,14 @@ describe('AvailabilityPage', () => {
     renderPage();
     await screen.findByText(/Dr Lopez/);
 
+    mockJsonResponse({ franjas: ['08:00', '08:30', '09:00'] });
+    mockJsonResponse({ franjas: [] });
+    mockJsonResponse({ franjas: [] });
+
     fireEvent.click(screen.getByRole('button', { name: 'Reservar' }));
 
-    mockJsonResponse({ franjas: ['08:00', '08:30', '09:00'] });
-    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-07-16' } });
-
-    await waitFor(() => expect(screen.getByLabelText('Hora disponible')).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText('Hora disponible'), { target: { value: '08:30' } });
+    const slotBoton = await screen.findByRole('button', { name: '08:30' });
+    fireEvent.click(slotBoton);
 
     mockJsonResponse({ message: 'Tu cita ha sido agendada exitosamente.', cita: { id: 'c1' } }, true, 201);
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar reserva' }));
@@ -121,5 +127,25 @@ describe('AvailabilityPage', () => {
         body: JSON.stringify({ medicoId: 'med-1', fechaHora: '2026-07-16T08:30' }),
       })
     );
+  });
+
+  it('HU-07 avisa cuando no hay horarios libres en las proximas semanas', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-16T10:00:00'));
+
+    mockJsonResponse({ especialidades: [] });
+    mockJsonResponse({ medicos: [{ id: 'med-1', nombre: 'Dr', apellido: 'Lopez', especialidadId: 'esp-1' }] });
+    mockJsonResponse({ horarios: [{ id: 'h1', medicoId: 'med-1', diaSemana: 'JUE', horaInicio: '08:00', horaFin: '12:00' }] });
+
+    renderPage();
+    await screen.findByText(/Dr Lopez/);
+
+    mockJsonResponse({ franjas: [] });
+    mockJsonResponse({ franjas: [] });
+    mockJsonResponse({ franjas: [] });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reservar' }));
+
+    expect(await screen.findByText(/No hay horarios libres en las próximas tres semanas/)).toBeInTheDocument();
   });
 });
