@@ -49,13 +49,16 @@ alter table public.citas
   add constraint citas_estado_check check (estado in ('CONFIRMADA', 'CANCELADA'));
 
 -- 4. Eliminar las columnas del esquema viejo que el codigo actual ya no usa
---    (los indices que dependen de ellas se eliminan solos).
+--    (los indices que dependen de ellas se eliminan solos). fecha_hora_inicio
+--    se elimina primero porque es una columna generada a partir de fecha/hora_inicio.
+alter table public.citas
+  drop column if exists fecha_hora_inicio;
+
 alter table public.citas
   drop column if exists paciente_email,
   drop column if exists horario_id,
   drop column if exists fecha,
-  drop column if exists hora_inicio,
-  drop column if exists fecha_hora_inicio;
+  drop column if exists hora_inicio;
 
 -- 5. Recrear el indice de proteccion contra doble reserva sobre fecha_hora
 --    (el mismo mecanismo que ya documenta 0006_citas.sql).
