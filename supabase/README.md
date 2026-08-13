@@ -18,6 +18,9 @@ dashboard de Supabase (Proyecto → SQL Editor → New query):
     en vez de `fecha_hora`/`especialidad_id`). Alinea la tabla real con el código sin
     perder las citas existentes. Si tu tabla `citas` se creó directamente con
     `0006_citas.sql`, no hace falta correr esta.
+11. `migrations/0011_renombrar_timestamps_citas.sql` — **mismo caso que la anterior**:
+    si tu tabla `citas` tenía `created_at`/`updated_at` (esquema del PR #7) en vez de
+    `creada_en`/`actualizada_en`, esta las renombra sin perder los valores.
 
 Después de correrlos, para tener un usuario ADMIN de prueba:
 
