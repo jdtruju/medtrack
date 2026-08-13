@@ -39,6 +39,7 @@ export function AvailabilityPage() {
   const [especialidadId, setEspecialidadId] = useState('');
   const [reserva, setReserva] = useState<Reserva | null>(null);
   const [reservaStatus, setReservaStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const [franjaError, setFranjaError] = useState('');
 
   async function fetchAll() {
     const { token } = getSession();
@@ -80,6 +81,7 @@ export function AvailabilityPage() {
 
   function iniciarReserva(medicoId: string) {
     setReservaStatus(null);
+    setFranjaError('');
     setReserva({ medicoId, fecha: '', franjas: [], franjaSeleccionada: '' });
   }
 
@@ -99,17 +101,26 @@ export function AvailabilityPage() {
 
   async function handleFechaChange(fecha: string) {
     if (!reserva) return;
-    const { token } = getSession();
-    const response = await apiRequest<{ franjas: string[] }>(
-      `/api/citas/disponibilidad?medicoId=${reserva.medicoId}&fecha=${fecha}`,
-      { token }
-    );
-    setReserva({ ...reserva, fecha, franjas: response.franjas, franjaSeleccionada: '' });
+    setFranjaError('');
+    setReserva({ ...reserva, fecha, franjas: [], franjaSeleccionada: '' });
+    try {
+      const { token } = getSession();
+      const response = await apiRequest<{ franjas: string[] }>(
+        `/api/citas/disponibilidad?medicoId=${reserva.medicoId}&fecha=${fecha}`,
+        { token }
+      );
+      setReserva({ ...reserva, fecha, franjas: response.franjas, franjaSeleccionada: '' });
+      if (!response.franjas.length) {
+        setFranjaError('Este médico no atiende ese día, o ya no quedan franjas libres. Elegí otra fecha.');
+      }
+    } catch (error) {
+      setFranjaError((error as Error).message);
+    }
   }
 
   async function handleConfirmarReserva(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!reserva) return;
+    if (!reserva || !reserva.franjaSeleccionada) return;
     const { token } = getSession();
 
     try {
@@ -187,9 +198,19 @@ export function AvailabilityPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between">
-              <h2 id="reservarCitaTitulo" className="text-lg font-semibold">
-                Reservar cita
-              </h2>
+              <div>
+                <h2 id="reservarCitaTitulo" className="text-lg font-semibold">
+                  Reservar cita
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">{medicoLabel(reserva.medicoId)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Atiende:{' '}
+                  {horarios
+                    .filter((h) => h.medicoId === reserva.medicoId)
+                    .map((h) => `${h.diaSemana} ${h.horaInicio}-${h.horaFin}`)
+                    .join(' · ')}
+                </p>
+              </div>
               <button
                 type="button"
                 aria-label="Cerrar"
@@ -211,7 +232,7 @@ export function AvailabilityPage() {
                   className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm"
                 />
               </label>
-              {reserva.fecha ? (
+              {reserva.fecha && reserva.franjas.length ? (
                 <label className="block text-sm font-semibold text-slate-700" htmlFor="horaReserva">
                   Hora disponible
                   <select
@@ -230,6 +251,7 @@ export function AvailabilityPage() {
                   </select>
                 </label>
               ) : null}
+              {franjaError ? <StatusMessage tone="error" message={franjaError} /> : null}
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
@@ -238,7 +260,10 @@ export function AvailabilityPage() {
                 >
                   Cancelar
                 </button>
-                <button className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800">
+                <button
+                  disabled={!reserva.franjaSeleccionada}
+                  className="rounded-md bg-teal-700 px-4 py-2.5 font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Confirmar reserva
                 </button>
               </div>
