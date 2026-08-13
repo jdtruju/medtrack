@@ -1,4 +1,5 @@
 import {
+  bloquesSeSuperponen,
   diaSemanaDeFecha,
   fechaDeDiaEnSemana,
   generarFranjas,
@@ -333,6 +334,20 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
           error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
         };
       }
+      const { data: existentes } = await client
+        .from('horarios')
+        .select('hora_inicio, hora_fin')
+        .eq('medico_id', input.medicoId)
+        .eq('dia_semana', input.diaSemana);
+      const superpuesto = ((existentes ?? []) as Array<{ hora_inicio: string; hora_fin: string }>).some((h) =>
+        bloquesSeSuperponen(input.horaInicio, input.horaFin, normalizeTime(h.hora_inicio), normalizeTime(h.hora_fin))
+      );
+      if (superpuesto) {
+        return {
+          ok: false,
+          error: { status: 409, message: 'Este médico ya tiene un horario que se superpone ese día.' },
+        };
+      }
       const { data, error } = await client
         .from('horarios')
         .insert({
@@ -364,6 +379,22 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
         return {
           ok: false,
           error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
+        };
+      }
+      const { data: existentes } = await client
+        .from('horarios')
+        .select('id, hora_inicio, hora_fin')
+        .eq('medico_id', input.medicoId)
+        .eq('dia_semana', input.diaSemana);
+      const superpuesto = ((existentes ?? []) as Array<{ id: string; hora_inicio: string; hora_fin: string }>).some(
+        (h) =>
+          h.id !== id &&
+          bloquesSeSuperponen(input.horaInicio, input.horaFin, normalizeTime(h.hora_inicio), normalizeTime(h.hora_fin))
+      );
+      if (superpuesto) {
+        return {
+          ok: false,
+          error: { status: 409, message: 'Este médico ya tiene un horario que se superpone ese día.' },
         };
       }
       const { data, error } = await client
@@ -719,7 +750,10 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     async disponibilidad(hoy, medicoId) {
       let query = client
         .from('horarios')
-        .select('id, medico_id, dia_semana, hora_inicio, hora_fin');
+        .select('id, medico_id, dia_semana, hora_inicio, hora_fin')
+        .order('medico_id')
+        .order('dia_semana')
+        .order('hora_inicio');
       if (medicoId) query = query.eq('medico_id', medicoId);
       const { data: bloques } = await query;
 
@@ -764,7 +798,8 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
       let query = client
         .from('citas')
         .select('id, paciente_id, medico_id, especialidad_id, fecha_hora, estado, motivo_cancelacion, recordatorio_enviado')
-        .order('fecha_hora');
+        .order('fecha_hora')
+        .limit(1000);
       if (filters.medicoId) query = query.eq('medico_id', filters.medicoId);
       if (filters.desde) query = query.gte('fecha_hora', filters.desde);
       if (filters.hasta) query = query.lte('fecha_hora', `${filters.hasta}T23:59`);

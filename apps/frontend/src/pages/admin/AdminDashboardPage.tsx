@@ -32,6 +32,8 @@ export function AdminDashboardPage() {
   const datosGrafico = (stats?.ocupacionPorMedico ?? []).map((item) => ({
     nombre: `Dr ${item.nombre} ${item.apellido}`,
     porcentaje: item.porcentaje,
+    franjasOcupadas: item.franjasOcupadas,
+    franjasTotales: item.franjasTotales,
   }));
 
   return (
@@ -61,7 +63,15 @@ export function AdminDashboardPage() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="nombre" />
               <YAxis unit="%" domain={[0, 100]} />
-              <Tooltip />
+              <Tooltip
+                formatter={(value, _name, item) => {
+                  const { franjasOcupadas, franjasTotales } = item.payload as {
+                    franjasOcupadas: number;
+                    franjasTotales: number;
+                  };
+                  return [`${value}% (${franjasOcupadas} de ${franjasTotales} franjas)`, 'Ocupación'];
+                }}
+              />
               <Bar dataKey="porcentaje" fill="#0f766e" />
             </BarChart>
           ) : (
