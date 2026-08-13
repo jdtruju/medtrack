@@ -57,7 +57,9 @@ export function ReportsPage() {
 
   useEffect(() => {
     const { token } = getSession();
-    const query = medicoDisponibilidad ? `?medicoId=${medicoDisponibilidad}` : '';
+    const params = new URLSearchParams();
+    if (medicoDisponibilidad) params.set('medicoId', medicoDisponibilidad);
+    const query = params.toString() ? `?${params.toString()}` : '';
     apiRequest<{ items: DisponibilidadItem[] }>(`/api/reportes/disponibilidad${query}`, { token })
       .then((response) => setDisponibilidad(response.items))
       .catch(() => setDisponibilidad([]));

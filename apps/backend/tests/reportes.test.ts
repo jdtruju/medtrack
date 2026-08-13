@@ -79,6 +79,28 @@ describe('GET /api/reportes/*', () => {
     expect(citas.status).toBe(403);
   });
 
+  it('HU-15 rechaza si el usuario no esta autenticado', async () => {
+    const dashboard = await request(app).get('/api/reportes/dashboard');
+    const disponibilidad = await request(app).get('/api/reportes/disponibilidad');
+    const citas = await request(app).get('/api/reportes/citas');
+
+    expect(dashboard.status).toBe(401);
+    expect(disponibilidad.status).toBe(401);
+    expect(citas.status).toBe(401);
+  });
+
+  it('HU-14 rechaza un rango de fechas invalido', async () => {
+    const fechaInvalida = await request(app)
+      .get('/api/reportes/citas?desde=no-es-una-fecha')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(fechaInvalida.status).toBe(400);
+
+    const rangoInvertido = await request(app)
+      .get('/api/reportes/citas?desde=2026-07-19&hasta=2026-07-16')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(rangoInvertido.status).toBe(400);
+  });
+
   it('HU-15 devuelve totales y ocupacion por medico', async () => {
     const response = await request(app)
       .get('/api/reportes/dashboard')

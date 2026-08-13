@@ -21,6 +21,9 @@ export function rangoSemanaActual(hoy: string): { inicio: string; fin: string } 
 
 export function fechaDeDiaEnSemana(inicioSemana: string, diaSemana: string): string {
   const offset = DIAS_SEMANA.indexOf(diaSemana as (typeof DIAS_SEMANA)[number]);
+  if (offset === -1) {
+    throw new Error(`Día de la semana inválido: "${diaSemana}".`);
+  }
   const lunesIndex = DIAS_SEMANA.indexOf('LUN');
   const diasDesdeElLunes = (offset - lunesIndex + 7) % 7;
 
@@ -34,6 +37,15 @@ function formatearFecha(fecha: Date): string {
   const m = String(fecha.getMonth() + 1).padStart(2, '0');
   const d = String(fecha.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+export function bloquesSeSuperponen(
+  inicioA: string,
+  finA: string,
+  inicioB: string,
+  finB: string
+): boolean {
+  return inicioA < finB && inicioB < finA;
 }
 
 export function generarFranjas(horaInicio: string, horaFin: string, duracionMin = 30): string[] {

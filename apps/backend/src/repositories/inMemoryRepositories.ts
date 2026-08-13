@@ -1,4 +1,5 @@
 import {
+  bloquesSeSuperponen,
   diaSemanaDeFecha,
   fechaDeDiaEnSemana,
   generarFranjas,
@@ -266,6 +267,18 @@ export function createInMemoryServices() {
           error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
         };
       }
+      const superpuesto = horarios.some(
+        (h) =>
+          h.medicoId === input.medicoId &&
+          h.diaSemana === input.diaSemana &&
+          bloquesSeSuperponen(input.horaInicio, input.horaFin, h.horaInicio, h.horaFin)
+      );
+      if (superpuesto) {
+        return {
+          ok: false,
+          error: { status: 409, message: 'Este médico ya tiene un horario que se superpone ese día.' },
+        };
+      }
       const horario: Horario = { id: newId('horario'), ...input };
       horarios.push(horario);
       return { ok: true, value: horario };
@@ -279,6 +292,19 @@ export function createInMemoryServices() {
         return {
           ok: false,
           error: { status: 400, message: 'La hora de fin debe ser posterior a la hora de inicio.' },
+        };
+      }
+      const superpuesto = horarios.some(
+        (h) =>
+          h.id !== id &&
+          h.medicoId === input.medicoId &&
+          h.diaSemana === input.diaSemana &&
+          bloquesSeSuperponen(input.horaInicio, input.horaFin, h.horaInicio, h.horaFin)
+      );
+      if (superpuesto) {
+        return {
+          ok: false,
+          error: { status: 409, message: 'Este médico ya tiene un horario que se superpone ese día.' },
         };
       }
       horarios[index] = { id, ...input };
@@ -502,7 +528,15 @@ export function createInMemoryServices() {
 
     async disponibilidad(hoy, medicoId) {
       const { inicio } = rangoSemanaActual(hoy);
-      const bloques = horarios.filter((h) => !medicoId || h.medicoId === medicoId);
+      const bloques = horarios
+        .filter((h) => !medicoId || h.medicoId === medicoId)
+        .slice()
+        .sort(
+          (a, b) =>
+            a.medicoId.localeCompare(b.medicoId) ||
+            a.diaSemana.localeCompare(b.diaSemana) ||
+            a.horaInicio.localeCompare(b.horaInicio)
+        );
 
       return bloques.map((bloque) => {
         const medico = medicos.find((m) => m.id === bloque.medicoId);
@@ -536,6 +570,8 @@ export function createInMemoryServices() {
         .filter((c) => !filters.medicoId || c.medicoId === filters.medicoId)
         .filter((c) => !filters.desde || c.fechaHora >= filters.desde)
         .filter((c) => !filters.hasta || c.fechaHora <= `${filters.hasta}T23:59`)
+        .slice()
+        .sort((a, b) => a.fechaHora.localeCompare(b.fechaHora))
         .map((c) => {
           const medico = medicos.find((m) => m.id === c.medicoId);
           const paciente = users.find((u) => u.id === c.pacienteId);
