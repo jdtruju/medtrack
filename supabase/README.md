@@ -13,6 +13,11 @@ dashboard de Supabase (Proyecto → SQL Editor → New query):
 7. `migrations/0007_notificaciones.sql`
 8. `migrations/0008_especialidades_crud.sql`
 9. `migrations/0009_especialidades_descripcion.sql`
+10. `migrations/0010_alinear_citas_produccion.sql` — **solo si tu tabla `citas` ya existía
+    con el esquema antiguo** (columnas `paciente_email`/`horario_id`/`fecha`/`hora_inicio`
+    en vez de `fecha_hora`/`especialidad_id`). Alinea la tabla real con el código sin
+    perder las citas existentes. Si tu tabla `citas` se creó directamente con
+    `0006_citas.sql`, no hace falta correr esta.
 
 Después de correrlos, para tener un usuario ADMIN de prueba:
 
