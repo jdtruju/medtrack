@@ -149,9 +149,16 @@ export function createSupabaseServices(client: SupabaseClient, frontendUrl: stri
     },
 
     async forgotPassword(email) {
-      await client.auth.resetPasswordForEmail(email, {
+      const { error } = await client.auth.resetPasswordForEmail(email, {
         redirectTo: `${frontendUrl}/reset-password`,
       });
+      if (error) {
+        console.error('No se pudo enviar el correo de recuperación de contraseña.', {
+          email,
+          redirectTo: `${frontendUrl}/reset-password`,
+          error: error.message,
+        });
+      }
     },
 
     async resetPassword(accessToken, password) {
