@@ -9,7 +9,7 @@ import type { AppServices } from './services/appServices';
 export function createApp(services: AppServices) {
   const app = express();
 
-  app.use(cors({ origin: env.corsOrigin }));
+  app.use(cors({ origin: env.corsOrigins }));
   app.use(express.json());
   app.use(apiRouter(services));
   app.use(notFound);
